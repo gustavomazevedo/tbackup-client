@@ -1,6 +1,11 @@
 # -*- coding: utf-8 -*-
+import json
+import urllib
+import urllib2
+import requests
 
 from django.db import models
+from django.conf import settings
 
 from .mixins import NameableMixin, LoggableMixin
 
@@ -49,118 +54,247 @@ from .mixins import NameableMixin, LoggableMixin
 #    def send(obj):
         
 
-
 class Destination(models.Model):
     name = models.CharField(max_length=1024,
-                            verbose_name=u'nome',
+                            verbose_name=u"nome",
                             primary_key=True)
     
     class Meta:
-        verbose_name = u'destino'
-        ordering = ['name']
+        verbose_name = u"destino"
+        ordering = [u"name"]
         
     def __unicode__(self):
         return self.name
     
     @staticmethod
     def update():
-        destination_names_server = WebServer.objects.get(pk=1).get_resource_list(u'destination')
-        dn_array = [d['name'] for d in destination_names_server]
-        dests_to_delete = Destination.objects.exclude(name__in=dn_array)
-        for d in dests_to_delete:
-            d.delete()
-        all_dests = Destination.objects.all()
-        dests_to_add = (d for d in dn_array if not d.name in all_dests)
-        for d in dests_to_add:
-            Destination.objects.create(name=d.name)
+        #try:
+        destination_names_server = WebServer.get().destinations()
+        #except:
+        #    return
+        dn_array = [d[u"name"] for d in destination_names_server]
+        print dn_array
+        #coleta todos os destinations não contidos no array que não estejam
+        #sendo utilizados em alguma config
+        dests_to_delete = [d for d in Destination.objects.exclude(name__in=dn_array)
+                            if not any(c.destination == d for c in Config.objects.all())]
+        print dests_to_delete
+        for dest in dests_to_delete:
+            dest.delete()
+        #coleta todos os nomes de destinations ainda não cadastrados
+        dns_to_add = [dn for dn in dn_array
+                      if not any(dn == d.name for d in Destination.objects.all())]
+        for dn in dns_to_add:
+            print u"add " + dn
+            Destination.objects.create(name=dn)
 
 class Origin(models.Model):
     name = models.CharField(max_length=1024,
-                            verbose_name=u'nome')
+                            verbose_name=u"nome")
+    #registered = models.BooleanField(default=False,
+    #                                 editable=False,
+    #                                 verbose_name=u'registrado')
     
     class Meta:
-        verbose_name = u'origem'
-        verbose_name_plural = u'origens'
-        ordering = ['name']
+        verbose_name = u"origem"
+        verbose_name_plural = u"origem"
     
     def __unicode__(self):
         return self.name
+    
+    @staticmethod
+    def register(name):
+        try:
+            return WebServer.get().register(name)
+        except:
+            return None
+        
 
 class WebServer(models.Model):
     name   = models.CharField(max_length=80,
-                              verbose_name=u'nome')
-    apikey = models.TextField(verbose_name = u'chave',
+                              verbose_name=u"nome")
+    apikey = models.TextField(verbose_name = u"chave",
                               editable=False)
+    url         = models.CharField(max_length=1024)
     api_url     = models.CharField(max_length=1024)
     api_version = models.CharField(max_length=20)
     
     def __unicode__(self):
         return self.name
     
-    def get_resource_list(self, resource_name):
-        full_url = '%s/%s/%s/?format=json&apikey=' % (self.api_url,
-                                                      self.api_version,
-                                                      resource_name,
-                                                      self.apikey)
+    class Meta:
+        verbose_name_plural = u"web server"
         
-        response = some_magic_lib.get(full_url)
-        if response.code == '200':
-            pass
-        else:
-            pass
+    @staticmethod
+    def get():
+        #import ipdb; ipdb.set_trace()
+        try:
+            return WebServer.objects.get(pk=1)
+        except WebServer.DoesNotExist:
+            return WebServer.objects.create(
+                name=settings.WEBSERVER_NAME,
+                url=settings.WEBSERVER_URL,
+                api_url=settings.WEBSERVER_API_URL,
+                api_version=settings.WEBSERVER_API_VERSION
+            )
     
+    def destinations(self):
+        return self.remote_action(u"destinations")
+        
+    def register(self, origin_name):
+        #import ipdb; ipdb.set_trace()
+        return self.remote_action(u"register_origin",
+                                  get_signed_data(
+                                    {u"origin": origin_name},
+                                    settings.R_SIGNATURE_KEY,
+                                    ))
+    
+    def backup(self, data):
+        return self.remote_action(u"backup", data)
+    
+    def restore(self, data):
+        return self.remote_action(u"restore", data)
+    
+    def remote_action(self, view_name, data=None):
+        return self._json_request(
+            url =u"%s/server/%s/" %
+            (
+                self.url,
+                view_name
+            ),
+            data=data
+        )
+    
+    def _json_request(self, url, data=None, files=None):
+        if data:
+            r = requests.post(url, data=data, files=files)
+        else:
+            r = requests.get(url)
+        print r
+        print r.status_code
+        json_response = r.json()
+        print json_response
+        if r.status_code == 200 and authenticated(json_response):
+            import ipdb; ipdb.set_trace()
+            return json_response
+        else:
+            import ipdb; ipdb.set_trace()
+            return {}
 
-#class Config(models.Model):
+from Crypto.Hash import SHA
+import operator
+from datetime import datetime
+
+def authenticated(fulldata):
+    import ipdb; ipdb.set_trace()
+    signature = fulldata.get(u"signature", None)
+    data = remove_key(fulldata, u"signature")
+    import ipdb; ipdb.set_trace()
+    if not signature:
+        return False
+    apikey = WebServer.get().apikey
+    import ipdb; ipdb.set_trace()
+    if apikey:
+        import ipdb; ipdb.set_trace()
+        return signature == sign(data, apikey)
+    else:
+        import ipdb; ipdb.set_trace()
+        return signature == sign(data, settings.R_SIGNATURE_KEY)
+    
+def sign(data, key):
+    sha1 = SHA.new()
+    if not data:
+        sha1.update(u"None")
+    else:
+        sorted_data = sorted(data.iteritems(),key=operator.itemgetter(0))
+        for item in sorted_data:
+            sha1.update(unicode(item))
+    sha1.update(key)
+    
+    import ipdb; ipdb.set_trace()
+    return sha1.hexdigest()
+
+def get_signed_data(data, key):
+    return_data = dict(data) if data else {}
+    
+    return_data[u"timestamp"] = u"%s" % json.dumps(unicode(datetime.now()))
+    return_data[u"signature"] = u"%s" % sign(return_data, key)
+    
+    #import ipdb; ipdb.set_trace()
+    return return_data
+
+def remove_key(d, key):
+    r = dict(d)
+    del r[key]
+    return r
+
+#class Plan(models.Model):
 #    destination = models.ForeignKey('Destination')
 #    interval    = models.IntegerField(verbose_name='periodicidade')
-#    last_backup = models.DateTimeField(default=datetime.now(),verbose_name=u'data do último backup')
+#    last_backup = models.DateTimeField(auto_now=True,verbose_name=u'data do último backup')
 #    
 #    def __unicode__(self):
-#        from .forms import TIMEDELTA_CHOICES
-#        i, n = ''
-#        #n = ''
-#        for div, name in reversed(TIMEDELTA_CHOICES):
-#            if self.interval % div == 0:
-#                i = str(self.interval / div)
-#                n = name if i != '1' else name[0:-1]
-#                break
-#        return self.destination.name + " a cada " + i + " " + n  
-#
-#class BackupStatus(models.Model):
-#    executing = models.BooleanField(default=False)
-#    count = models.IntegerField(default=0)
-#    
-#    def save(self, *args, **kwargs):
-#        '''
-#        A cada 60 execuções (= 1 hora) que se passam com executing = True,
-#        reseta-o para False, para prevenir que uma queda do servidor prenda
-#        o status em True indefinidamente.
-#        '''
-#        if self.executing:
-#            self.count += 1
-#        else:
-#            self.count = 0
-#            
-#        if self.count >= 60:
-#            self.count = 0
-#            self.executing = False
-#        super(BackupStatus, self).save(*args, **kwargs)
-#    
-#class Log(models.Model):
-#    #origin = models.ForeignKey('Origin')
-#    destination = models.ForeignKey('Destination')
-#    date = models.DateTimeField(verbose_name='data')
-#    filename = models.CharField(max_length=1024, verbose_name='arquivo')
-#    local_status = models.BooleanField() 
-#    remote_status = models.BooleanField()
-#    
-#    def __unicode__(self):
-#        return self.filename
-#    
-#    def restore_link(self):
-#        if self.remote_status:
-#            return '<a href="/tbackup_client/restore/%s">Restore<img src="/static/img/Refresh.png"/></a>' % self.id
-#        return ''
-#    restore_link.short_description = 'Restaurar'
-#    restore_link.allow_tags = True
-#    
+#        return self.destination.name + unicode(self.interval)
+
+class Config(models.Model):
+    destination = models.ForeignKey('Destination', null=True)
+    interval    = models.IntegerField(verbose_name='periodicidade')
+    last_backup = models.DateTimeField(auto_now=True,verbose_name=u'data do último backup')
+    
+    def __unicode__(self):
+        return u"%s a cada %s" % (self.destination.name, self.interval_str)
+    
+    @property
+    def interval_str(self):
+        from .forms import TIMEDELTA_CHOICES
+        i = ''
+        n = ''
+        for div, name in reversed(TIMEDELTA_CHOICES):
+            if self.interval % div == 0:
+                i = str(self.interval / div)
+                n = name if i != '1' else name[0:-1]
+                break
+        return u"%s %s" % (i, n)
+
+class BackupStatus(models.Model):
+    executing = models.BooleanField(default=False)
+    count = models.IntegerField(default=0)
+    
+    class Meta:
+        verbose_name_plural = 'backup status'
+        
+    def save(self, *args, **kwargs):
+        '''
+        A cada 60 execuções (= 1 hora) que se passam com executing = True,
+        reseta-o para False, para prevenir que uma queda do servidor prenda
+        o status em True indefinidamente.
+        '''
+        if self.executing:
+            self.count += 1
+        else:
+            self.count = 0
+            
+        if self.count >= 60:
+            self.count = 0
+            self.executing = False
+        super(BackupStatus, self).save(*args, **kwargs)
+    
+class Log(models.Model):
+    #origin = models.ForeignKey('Origin')
+    destination = models.ForeignKey('Destination')
+    date = models.DateTimeField(verbose_name='data')
+    filename = models.CharField(max_length=1024, verbose_name='arquivo')
+    local_status = models.BooleanField() 
+    remote_status = models.BooleanField()
+    
+    def __unicode__(self):
+        return self.filename
+    
+    def restore_link(self):
+        if self.remote_status:
+            return '<a href="/tbackup_client/restore/%s">Restore<img src="/static/img/Refresh.png"/></a>' % self.id
+        return ''
+    
+    restore_link.short_description = 'Restaurar'
+    restore_link.allow_tags = True
+    

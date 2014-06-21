@@ -12,12 +12,18 @@ https://docs.djangoproject.com/en/1.6/ref/settings/
 import os
 BASE_DIR = os.path.dirname(os.path.dirname(__file__))
 
-
+from settings_dev import (
+    DATABASES,
+    DEBUG,
+    R_SIGNATURE_KEY,
+    SECRET_KEY,
+    WEBSERVER_API_URL,
+    WEBSERVER_API_VERSION,
+    WEBSERVER_NAME,
+    WEBSERVER_URL
+)
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/1.6/howto/deployment/checklist/
-
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = '_2q#m6h3qr35t7=+#p1%_wqhr*&(2^g&hbd51z%h_0$!rmbh$9'
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -36,6 +42,7 @@ INSTALLED_APPS = (
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django_extensions',
     'client',
 )
 
@@ -56,17 +63,17 @@ WSGI_APPLICATION = 'tbackup_client.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/1.6/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
-    }
-}
+#DATABASES = {
+#    'default': {
+#        'ENGINE': 'django.db.backends.sqlite3',
+#        'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
+#    }
+#}
 
 # Internationalization
 # https://docs.djangoproject.com/en/1.6/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = 'pt-br'
 
 TIME_ZONE = 'UTC'
 
@@ -81,3 +88,9 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/1.6/howto/static-files/
 
 STATIC_URL = '/static/'
+
+#WEBSERVER_NAME = 'WebServer'
+#WEBSERVER_URL = 'http://127.0.0.1:7000'
+#WEBSERVER_API_URL = '/api'
+#WEBSERVER_API_VERSION = 'v1'
+
