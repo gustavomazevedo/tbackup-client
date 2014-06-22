@@ -9,6 +9,9 @@ from django.conf import settings
 
 from .mixins import NameableMixin, LoggableMixin
 
+POST = 'POST'
+GET = 'GET'
+
 # Create your models here.
 #class Destination(NameableMixin):
 #    
@@ -69,20 +72,22 @@ class Destination(models.Model):
     @staticmethod
     def update():
         #try:
-        destination_names_server = WebServer.get().destinations()
+        destinations = WebServer.get().destinations().get('destinations', None)
         #except:
         #    return
-        dn_array = [d[u"name"] for d in destination_names_server]
-        print dn_array
+        
+        #dn_array = [d[u"name"] for d in destination_names_server]
+        #print dn_array
+        print destinations
         #coleta todos os destinations não contidos no array que não estejam
         #sendo utilizados em alguma config
-        dests_to_delete = [d for d in Destination.objects.exclude(name__in=dn_array)
+        dests_to_delete = [d for d in Destination.objects.exclude(name__in=destinations)
                             if not any(c.destination == d for c in Config.objects.all())]
         print dests_to_delete
         for dest in dests_to_delete:
             dest.delete()
         #coleta todos os nomes de destinations ainda não cadastrados
-        dns_to_add = [dn for dn in dn_array
+        dns_to_add = [dn for dn in destinations
                       if not any(dn == d.name for d in Destination.objects.all())]
         for dn in dns_to_add:
             print u"add " + dn
@@ -138,45 +143,65 @@ class WebServer(models.Model):
                 api_version=settings.WEBSERVER_API_VERSION
             )
     
-    def destinations(self):
-        return self.remote_action(u"destinations")
+    def destinations(self, origin_id, apikey):
+        return self.remote_action(u"destinations",
+                                  GET,
+                                  origin_id,
+                                  get_signed_data(None, apikey))
         
     def register(self, origin_name):
         #import ipdb; ipdb.set_trace()
         return self.remote_action(u"register_origin",
+                                  POST,
                                   get_signed_data(
                                     {u"origin": origin_name},
                                     settings.R_SIGNATURE_KEY,
                                     ))
     
-    def backup(self, data):
-        return self.remote_action(u"backup", data)
+    def backup(self, origin_id, apikey, data, files):
+        return self.remote_action(u"backup",
+                                  POST,
+                                  origin_id,
+                                  get_signed_data(data, apikey),
+                                  files)
     
-    def restore(self, data):
-        return self.remote_action(u"restore", data)
+    def restore(self, origin_id, apikey, data):
+        return self.remote_action(u"restore",
+                                  POST,
+                                  origin_id,
+                                  get_signed_data(data, apikey))
     
-    def remote_action(self, view_name, data=None):
+    def remote_action(self, view_name, origin_id=None, method=None, data=None, files=None):
         return self._json_request(
-            url =u"%s/server/%s/" %
+            url =u"%s/server/%s%s/" %
             (
                 self.url,
+                origin_id + u"/" if origin_id else u"",
                 view_name
             ),
-            data=data
+            method=method,
+            data=data,
+            files=files
         )
     
-    def _json_request(self, url, data=None, files=None):
-        if data:
+    def _json_request(self, url, method=None, data=None, files=None):
+        if method == POST:
             r = requests.post(url, data=data, files=files)
         else:
-            r = requests.get(url)
+            r = requests.get(url, params=data)
+            
         print r
         print r.status_code
         json_response = r.json()
         print json_response
-        if r.status_code == 200 and authenticated(json_response):
-            import ipdb; ipdb.set_trace()
-            return json_response
+        if r.status_code == 200:
+            if authenticated(json_response):
+                import ipdb; ipdb.set_trace()
+                return remove_key(json_response, u"signature")
+            else:
+                import ipdb; ipdb.set_trace()
+                from django.http import HttpResponse
+                return HttpResponse(u"<h1>Erro de autenticação</h1><h2>Assinatura não válida</h2>")
         else:
             import ipdb; ipdb.set_trace()
             return {}
