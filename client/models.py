@@ -205,7 +205,12 @@ class WebServer(models.Model):
             
         print r
         print r.status_code
-        print r.text
+        
+        if r.status_code != 200:
+            #print r.text
+            with open('~/Documents/untitled.html', 'wb') as f:
+                f.write(r.text)
+            return r.text
         json_response = r.json()
         print json_response
         if r.status_code == 200:
