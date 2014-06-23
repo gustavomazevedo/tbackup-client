@@ -4,6 +4,8 @@ import urllib
 import urllib2
 import requests
 
+from requests.exceptions import ConnectionError
+
 from django.db import models
 from django.conf import settings
 
@@ -70,27 +72,21 @@ class Destination(models.Model):
         return self.name
     
     @staticmethod
-    def update():
-        #try:
-        destinations = WebServer.get().destinations().get('destinations', None)
-        #except:
-        #    return
+    def update(origin_id):
+        try:
+            destinations = WebServer.get().destinations(origin_id).get('destinations', None)
+        except ConnectionError: 
+            return #retorna silenciosamente (considera os destinos já cadastrados)
         
-        #dn_array = [d[u"name"] for d in destination_names_server]
-        #print dn_array
-        print destinations
-        #coleta todos os destinations não contidos no array que não estejam
-        #sendo utilizados em alguma config
+        #define quais destinations podem ser deletados
         dests_to_delete = [d for d in Destination.objects.exclude(name__in=destinations)
                             if not any(c.destination == d for c in Config.objects.all())]
-        print dests_to_delete
         for dest in dests_to_delete:
             dest.delete()
-        #coleta todos os nomes de destinations ainda não cadastrados
-        dns_to_add = [dn for dn in destinations
+        #coleta todos os destinations ainda não cadastrados
+        dests_to_add = [dn for dn in destinations
                       if not any(dn == d.name for d in Destination.objects.all())]
-        for dn in dns_to_add:
-            print u"add " + dn
+        for dn in dests_to_add:
             Destination.objects.create(name=dn)
 
 class Origin(models.Model):
@@ -99,6 +95,7 @@ class Origin(models.Model):
     #registered = models.BooleanField(default=False,
     #                                 editable=False,
     #                                 verbose_name=u'registrado')
+    remote_id = models.BigIntegerField(editable=False)
     
     class Meta:
         verbose_name = u"origem"
@@ -108,17 +105,21 @@ class Origin(models.Model):
         return self.name
     
     @staticmethod
+    def get():
+        return Origin.objects.filter(pk=1) or None
+    
+    @staticmethod
     def register(name):
-        try:
-            return WebServer.get().register(name)
-        except:
-            return None
+        return WebServer.get().register(name)
         
+    @staticmethod
+    def check_availability(name):
+        return WebServer.get().check_availability(name)
 
 class WebServer(models.Model):
     name   = models.CharField(max_length=80,
                               verbose_name=u"nome")
-    apikey = models.TextField(verbose_name = u"chave",
+    apikey = models.TextField(verbose_name = u"chave API",
                               editable=False)
     url         = models.CharField(max_length=1024)
     api_url     = models.CharField(max_length=1024)
@@ -143,90 +144,93 @@ class WebServer(models.Model):
                 api_version=settings.WEBSERVER_API_VERSION
             )
     
-    def destinations(self, origin_id, apikey):
-        return self.remote_action(u"destinations",
-                                  GET,
-                                  origin_id,
-                                  get_signed_data(None, apikey))
-        
+    
+    def check_availability(self, origin_name):
+        #import ipdb; ipdb.set_trace()
+        return self.remote_action(view_name= u"origin_available",
+                                  method   = GET,
+                                  data     = {u"origin": origin_name})
+    
     def register(self, origin_name):
         #import ipdb; ipdb.set_trace()
-        return self.remote_action(u"register_origin",
-                                  POST,
-                                  get_signed_data(
-                                    {u"origin": origin_name},
-                                    settings.R_SIGNATURE_KEY,
-                                    ))
+        return self.remote_action(view_name= u"register_origin",
+                                  method   = POST,
+                                  data     = {u"origin": origin_name})
     
-    def backup(self, origin_id, apikey, data, files):
-        return self.remote_action(u"backup",
-                                  POST,
-                                  origin_id,
-                                  get_signed_data(data, apikey),
-                                  files)
+    def destinations(self, origin_id):
+        return self.remote_action(view_name= u"destinations",
+                                  method   = GET,
+                                  apikey   = self.apikey,
+                                  origin_id= origin_id)
     
-    def restore(self, origin_id, apikey, data):
-        return self.remote_action(u"restore",
-                                  POST,
-                                  origin_id,
-                                  get_signed_data(data, apikey))
+    def backup(self, origin_id, data, files):
+        return self.remote_action(view_name= u"backup",
+                                  method   = POST,
+                                  data     = data,
+                                  apikey   = self.apikey,
+                                  origin_id= origin_id,
+                                  files    = files)
     
-    def remote_action(self, view_name, origin_id=None, method=None, data=None, files=None):
+    def restore(self, origin_id, data):
+        return self.remote_action(view_name= u"restore",
+                                  method   = POST,
+                                  data     = data,
+                                  apikey   = self.apikey,
+                                  origin_id= origin_id)
+    
+    def remote_action(self, view_name, method=None, data=None,
+                      apikey=None,
+                      origin_id=None, files=None):
         return self._json_request(
             url =u"%s/server/%s%s/" %
             (
                 self.url,
-                origin_id + u"/" if origin_id else u"",
+                u"%i/" % origin_id if origin_id else u"",
                 view_name
             ),
             method=method,
             data=data,
+            apikey=apikey,
             files=files
         )
     
-    def _json_request(self, url, method=None, data=None, files=None):
+    def _json_request(self, url, method=None, data=None, apikey=None, files=None):
+        signed_data = get_signed_data(data, apikey)
         if method == POST:
-            r = requests.post(url, data=data, files=files)
+            #import ipdb; ipdb.set_trace()
+            r = requests.post(url, data=signed_data, files=files)
         else:
-            r = requests.get(url, params=data)
+            #import ipdb; ipdb.set_trace()
+            r = requests.get(url, params=signed_data)
             
         print r
         print r.status_code
+        print r.text
         json_response = r.json()
         print json_response
         if r.status_code == 200:
-            if authenticated(json_response):
-                import ipdb; ipdb.set_trace()
+            if authenticated(json_response, apikey):
                 return remove_key(json_response, u"signature")
             else:
                 import ipdb; ipdb.set_trace()
                 from django.http import HttpResponse
                 return HttpResponse(u"<h1>Erro de autenticação</h1><h2>Assinatura não válida</h2>")
         else:
-            import ipdb; ipdb.set_trace()
+            #import ipdb; ipdb.set_trace()
             return {}
 
 from Crypto.Hash import SHA
 import operator
 from datetime import datetime
 
-def authenticated(fulldata):
-    import ipdb; ipdb.set_trace()
+def authenticated(fulldata, apikey):
     signature = fulldata.get(u"signature", None)
     data = remove_key(fulldata, u"signature")
-    import ipdb; ipdb.set_trace()
     if not signature:
         return False
-    apikey = WebServer.get().apikey
-    import ipdb; ipdb.set_trace()
-    if apikey:
-        import ipdb; ipdb.set_trace()
-        return signature == sign(data, apikey)
-    else:
-        import ipdb; ipdb.set_trace()
-        return signature == sign(data, settings.R_SIGNATURE_KEY)
+    return signature == sign(data, apikey)
     
-def sign(data, key):
+def sign(data, apikey=None):
     sha1 = SHA.new()
     if not data:
         sha1.update(u"None")
@@ -234,9 +238,10 @@ def sign(data, key):
         sorted_data = sorted(data.iteritems(),key=operator.itemgetter(0))
         for item in sorted_data:
             sha1.update(unicode(item))
-    sha1.update(key)
+    used_key = apikey or settings.R_SIGNATURE_KEY
+    sha1.update(used_key)
     
-    import ipdb; ipdb.set_trace()
+    #import ipdb; ipdb.set_trace()
     return sha1.hexdigest()
 
 def get_signed_data(data, key):
@@ -272,14 +277,11 @@ class Config(models.Model):
     @property
     def interval_str(self):
         from .forms import TIMEDELTA_CHOICES
-        i = ''
-        n = ''
-        for div, name in reversed(TIMEDELTA_CHOICES):
-            if self.interval % div == 0:
-                i = str(self.interval / div)
-                n = name if i != '1' else name[0:-1]
-                break
-        return u"%s %s" % (i, n)
+        empty = (0, u"")
+        return u"%i %s" % next(((self.interval / div, name)
+                        for div,name in reversed(TIMEDELTA_CHOICES)
+                        if self.interval % div == 0),
+                        empty)
 
 class BackupStatus(models.Model):
     executing = models.BooleanField(default=False)

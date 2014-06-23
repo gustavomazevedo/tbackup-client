@@ -3,12 +3,27 @@
 from django.forms import widgets
 from django import forms
 
+from client.models import (Origin, WebServer)
+
 TIMEDELTA_CHOICES = (
     #(3600, 'hora(s)'),
     (86400,'dia(s)'),
     (604800,'semana(s)'),
     (1296000,'quinzena(s)'),
 )
+
+class OriginForm(forms.ModelForm):
+    model = Origin
+    
+    def clean(self):
+        cleaned_data = super(OriginForm, self).clean()
+        data = WebServer.get().check_availability(cleaned_data.get(u"name", None))
+        if data:
+            if not data.get(u"availability"):
+                raise forms.ValidationError(u"Nome já está sendo utilizado. Por favor, escolha um novo nome ou contacte os administradores.")
+        else:
+            raise forms.ValidationError(u"Não foi possível conectar-se ao servidor")
+        return cleaned_data
 
 class TimedeltaWidget(widgets.MultiWidget):
     def __init__(self, attrs=None):
