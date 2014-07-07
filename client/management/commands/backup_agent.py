@@ -4,6 +4,8 @@ import os
 import gzip
 #from cStringIO import StringIO
 from datetime import datetime, timedelta
+from Crypto.Hash import SHA
+import requests
 
 from django.conf import settings
 from django.core.management import call_command
@@ -16,7 +18,6 @@ from tbackup_client.models import (Origin,
                                    Config, 
                                    Destination, 
                                    BackupStatus)
-
 
 PROJECT_DIR = os.path.normpath(os.path.join(
                     os.path.dirname(os.path.realpath(__file__)), '../../../'))
@@ -48,17 +49,11 @@ class Command(BaseCommand):
     
     def handle(self, *args, **options):
         #print "testando handle"
-        #print options
-        #Don't accept commands if origin is not registered
-        try:
-            Origin.objects.get(pk=1)
-        except Origin.DoesNotExist:
+        if not Origin.objects.filter(pk=1).exists():
             return
         
         backupHandler = BackupHandler()
-        #print options
         if options.get('check_backups', False):
-            #print 'entrei em check_backups'
             backupHandler.check_backups()
 #        elif options['update_config']:
 #            backupHandler.update_config()
@@ -72,10 +67,8 @@ class Command(BaseCommand):
 def fill_data():
     from dummy_app.models import DummyData
     for i in xrange(5):
-        DummyData.objects.create(
-                                 name='name %i' %i,
-                                 type='type %i' %i
-                                )
+        DummyData.objects.create( name='name %i' %i,
+                                  type='type %i' %i )
     
 class BackupHandler():
 
@@ -165,7 +158,8 @@ class BackupHandler():
         filename = origin.name + '_' + self.date
         
         installed_apps = settings.INSTALLED_APPS
-        apps = [a for a in installed_apps if (not (a.startswith('django') or a.startswith('tbackup')))]
+        apps = [a for a in installed_apps
+                if (not (a.startswith('django') or a.startswith('tbackup')))]
         
         #print 'client: apps'
         #print apps       
@@ -193,7 +187,6 @@ class BackupHandler():
     def remote_backup(self, log):
 
         #from base64 import b64encode
-        from Crypto.Hash import SHA
         sha1 = SHA.new()
         #with open(os.path.join(DUMP_DIR,log.filename), 'rb') as f:
         #    raw_data = str()
@@ -223,25 +216,25 @@ class BackupHandler():
         #                   'key': False,
         #                   'value' : value
         #                 }
-        import requests
+        
         
         ws = WebServer.objects.get(pk=1)
-        url = ws.url + 'tbackup_server/backup/'
-        print url
+        #url = ws.url + 'tbackup_server/backup/'
+        #print url
         #url = self._resolve_url('/a/creative/uploadcreative')
         #url = 'http://127.0.0.1:8080/server/backup/'
         f = open(os.path.join(DUMP_DIR,log.filename), 'rb')
         sha1.update(f.read())
         f.seek(0)
         files = {'file': (log.filename,f)}
-        data = {'destination': log.destination.name,
-                'sha1sum' : sha1.hexdigest(),
-                'date' : str(log.date),
-                'origin_name' : Origin.objects.get(pk=1).name}
-        req_msg = {'error' : 'false', 
-                   'encrypted' : 'false', 
-                   'key' : 'false',
-                   'value' : json.dumps(data)}
+        #data = {'destination': log.destination.name,
+        #        'sha1sum' : sha1.hexdigest(),
+        #        'date' : str(log.date),
+        #        'origin_name' : Origin.objects.get(pk=1).name}
+        #req_msg = {'error' : 'false', 
+        #           'encrypted' : 'false', 
+        #           'key' : 'false',
+        #           'value' : json.dumps(data)}
         response = requests.post(url, files=files, data=req_msg, verify=False)
         
         #print 'client:'
