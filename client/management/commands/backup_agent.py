@@ -47,18 +47,12 @@ class Command(BaseCommand):
         )
     
     def handle(self, *args, **options):
-        #print "testando handle"
-        #print options
         #Don't accept commands if origin is not registered
-        try:
-            Origin.objects.get(pk=1)
-        except Origin.DoesNotExist:
+        if not Origin.objects.filter(pk=1).exists():
             return
         
         backupHandler = BackupHandler()
-        #print options
         if options.get('check_backups', False):
-            #print 'entrei em check_backups'
             backupHandler.check_backups()
 #        elif options['update_config']:
 #            backupHandler.update_config()
@@ -131,10 +125,6 @@ class BackupHandler():
         #print configs
         for config in configs:
             delta = now - config.last_backup
-            #print now
-            #print config.last_backup
-            #print delta
-            #print delta.seconds
             if (delta.seconds + 86400 * delta.days) >= config.interval:
                 try:
                     config.last_backup = now
@@ -156,6 +146,16 @@ class BackupHandler():
         
         status.executing = False
         status.save()
+
+    #def check_backups(self):
+    #    transfers = TransferQueue.objects.all()
+    #    for t in transfers:
+    #        t.execute()
+    #    now = datetime.now()
+    #    now = -= timedelta(microseconds=now.microsecond)
+    #    ready_backups = [for c in configs if (now-config.last_backup)]
+        
+        return None
         
     def local_backup(self, config, log):
         dt = str(config.last_backup).replace(' ','_').replace(':','-')
@@ -165,12 +165,8 @@ class BackupHandler():
         filename = origin.name + '_' + self.date
         
         installed_apps = settings.INSTALLED_APPS
-        apps = [a for a in installed_apps if (not (a.startswith('django') or a.startswith('tbackup')))]
-        
-        #print 'client: apps'
-        #print apps       
-        #print 'FILENAME'
-        #print filename
+        apps = [a for a in installed_apps
+                if (not (a.startswith('django') or a.startswith('tbackup')))]
         
         f = open(os.path.join(DUMP_DIR,filename),"wb")
         call_command('dumpdata', *apps, stdout=f)
