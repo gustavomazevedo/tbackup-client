@@ -1,15 +1,19 @@
 # -*- coding: utf-8 -*-
 import json
-import urllib
-import urllib2
+#import urllib
+#import urllib2
 import requests
+import operator
+from datetime import datetime, timedelta
 
+from Crypto.Hash import SHA
 from requests.exceptions import ConnectionError
 
 from django.db import models
 from django.conf import settings
 
-from .mixins import NameableMixin, LoggableMixin
+from .forms import TIMEDELTA_CHOICES
+#from .mixins import NameableMixin, LoggableMixin
 
 POST = 'POST'
 GET = 'GET'
@@ -224,9 +228,7 @@ class WebServer(models.Model):
             #import ipdb; ipdb.set_trace()
             return {}
 
-from Crypto.Hash import SHA
-import operator
-from datetime import datetime
+
 
 def authenticated(fulldata, apikey):
     signature = fulldata.get(u"signature", None)
@@ -272,21 +274,47 @@ def remove_key(d, key):
 #        return self.destination.name + unicode(self.interval)
 
 class Config(models.Model):
-    destination = models.ForeignKey('Destination', null=True)
-    interval    = models.IntegerField(verbose_name='periodicidade')
-    last_backup = models.DateTimeField(auto_now=True,verbose_name=u'data do último backup')
+    destination    = models.ForeignKey('Destination', null=True)
+    interval_hours = models.PositiveIntegerField(verbose_name='periodicidade')
+    schedule_time  = models.TimeField()
+    last_scheduled = models.DateTimeField(editable=False)
+    last_backup    = models.DateTimeField(auto_now=True,
+                                          verbose_name=u'data do último backup')
     
     def __unicode__(self):
         return u"%s a cada %s" % (self.destination.name, self.interval_str)
     
     @property
     def interval_str(self):
-        from .forms import TIMEDELTA_CHOICES
         empty = (0, u"")
-        return u"%i %s" % next(((self.interval / div, name)
+        return u"%i %s" % next(((self.interval_hours / div, name)
                         for div,name in reversed(TIMEDELTA_CHOICES)
-                        if self.interval % div == 0),
+                        if self.interval_hours % div == 0),
                         empty)
+    @property
+    def next_scheduled(self):
+        return self.last_scheduled + timedelta(hours=self.interval_hours)
+    
+    @property
+    def whole_periods_off(self):
+        return (datetime.now()
+                - self.last_scheduled
+                + timedelta(hours=self.interval_hours)) / self.interval_hours
+        
+    def save(self, *args, **kwargs):
+        if not self.last_scheduled:
+            yesterday = datetime.today() - timedelta(days=1)
+            self.last_scheduled = datetime( yesterday.year
+                                          , yesterday.month
+                                          , yesterday.day
+                                          , self.schedule_time.hour
+                                          , self.schedule_time.minute
+                                          , self.schedule_time.second
+                                          )
+        else:
+            self.last_scheduled = self.next_scheduled
+        return super(Config, self).save(*args, **kwargs)
+    
 
 class BackupStatus(models.Model):
     executing = models.BooleanField(default=False)
