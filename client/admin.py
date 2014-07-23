@@ -1,21 +1,21 @@
 # -*- coding: utf-8 -*-
 
-import urllib2
-
 from django.core.exceptions import  PermissionDenied
 
 from django.contrib import admin
-from django.http import HttpResponse, HttpResponseForbidden
+from django.http import HttpResponseForbidden
 # Register your models here.
 
+from .constants import GET
+
 from .models import (
-    Destination
-  , Origin
-  , WebServer
-  #, Plan
-  , Config
-  , Log
-  , BackupStatus
+    Destination,
+    Origin,
+    WebServer,
+  # Plan
+   Config,
+   Log,
+  # BackupStatus,
   )
 from .forms import ConfigForm, OriginForm
 
@@ -59,12 +59,12 @@ class ConfigAdmin(admin.ModelAdmin):
         return self.origin_exists
 
     def add_view(self, request, form_url='', extra_context=None):
-        if request.method =='GET':
+        if request.method == GET:
             Destination.update(Origin.objects.get(pk=1).remote_id)
         return super(ConfigAdmin, self).add_view(request, form_url, extra_context)
     
     def change_view(self, request,form_url=''):
-        if request.method =='GET':
+        if request.method == GET:
             Destination.update(Origin.objects.get(pk=1).remote_id)
         return super(ConfigAdmin, self).change_view(request,form_url)
 

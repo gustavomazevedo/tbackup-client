@@ -95,3 +95,4 @@ STATIC_URL = '/static/'
 #WEBSERVER_API_URL = '/api'
 #WEBSERVER_API_VERSION = 'v1'
 
+TBACKUP_DUMP_DIR = os.path.join(BASE_DIR, 'backup_dumps')

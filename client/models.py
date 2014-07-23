@@ -1,22 +1,11 @@
 # -*- coding: utf-8 -*-
-import json
-#import urllib
-#import urllib2
-import requests
-import operator
-from datetime import datetime, timedelta
 
-from Crypto.Hash import SHA
+from datetime            import datetime, timedelta
 from requests.exceptions import ConnectionError
-
-from django.db import models
-from django.conf import settings
-
-from .forms import TIMEDELTA_CHOICES
-#from .mixins import NameableMixin, LoggableMixin
-
-POST = 'POST'
-GET = 'GET'
+from django.db           import models
+from django.conf         import settings
+from .constants          import TIMEDELTA_CHOICES, GET, POST
+from .functions          import json_request
 
 # Create your models here.
 #class Destination(NameableMixin):
@@ -185,7 +174,7 @@ class WebServer(models.Model):
     def remote_action(self, view_name, method=None, data=None,
                       apikey=None,
                       origin_id=None, files=None):
-        return self._json_request(
+        return json_request(
             url =u"%s/server/%s%s/" %
             (
                 self.url,
@@ -198,72 +187,8 @@ class WebServer(models.Model):
             files=files
         )
     
-    def _json_request(self, url, method=None, data=None, apikey=None, files=None):
-        signed_data = get_signed_data(data, apikey)
-        if method == POST:
-            #import ipdb; ipdb.set_trace()
-            r = requests.post(url, data=signed_data, files=files)
-        else:
-            #import ipdb; ipdb.set_trace()
-            r = requests.get(url, params=signed_data)
-            
-        print r
-        print r.status_code
-        
-        if r.status_code != 200:
-            #print r.text
-            with open('~/Documents/untitled.html', 'wb') as f:
-                f.write(r.text)
-            return r.text
-        json_response = r.json()
-        print json_response
-        if r.status_code == 200:
-            if authenticated(json_response, apikey):
-                return remove_key(json_response, u"signature")
-            else:
-                import ipdb; ipdb.set_trace()
-                from django.http import HttpResponse
-                return HttpResponse(u"<h1>Erro de autenticação</h1><h2>Assinatura não válida</h2>")
-        else:
-            #import ipdb; ipdb.set_trace()
-            return {}
 
 
-
-def authenticated(fulldata, apikey):
-    signature = fulldata.get(u"signature", None)
-    data = remove_key(fulldata, u"signature")
-    if not signature:
-        return False
-    return signature == sign(data, apikey)
-    
-def sign(data, apikey=None):
-    sha1 = SHA.new()
-    if not data:
-        sha1.update(u"None")
-    else:
-        sorted_data = sorted(data.iteritems(),key=operator.itemgetter(0))
-        for item in sorted_data:
-            sha1.update(unicode(item))
-    used_key = apikey or settings.R_SIGNATURE_KEY
-    sha1.update(used_key)
-    
-    #import ipdb; ipdb.set_trace()
-    return sha1.hexdigest()
-
-def get_signed_data(data, key):
-    return_data = dict(data) if data else {}
-    
-    return_data[u"timestamp"] = u"%s" % json.dumps(unicode(datetime.now()))
-    return_data[u"signature"] = u"%s" % sign(return_data, key)
-    
-    #import ipdb; ipdb.set_trace()
-    return return_data
-
-def remove_key(d, key):
-    r = dict(d)
-    del r[key]
-    return r
 
 #class Plan(models.Model):
 #    destination = models.ForeignKey('Destination')
@@ -273,16 +198,25 @@ def remove_key(d, key):
 #    def __unicode__(self):
 #        return self.destination.name + unicode(self.interval)
 
+    
 class Config(models.Model):
     destination    = models.ForeignKey('Destination', null=True)
     interval_hours = models.PositiveIntegerField(verbose_name='periodicidade')
-    schedule_time  = models.TimeField()
+    schedule_time  = models.DateTimeField()
     last_scheduled = models.DateTimeField(editable=False)
     last_backup    = models.DateTimeField(auto_now=True,
                                           verbose_name=u'data do último backup')
     
     def __unicode__(self):
         return u"%s a cada %s" % (self.destination.name, self.interval_str)
+    
+    #@property
+    #def interval_tuple(self):
+    #    empty = (0, 0)
+    #    return next(((self.interval_hours / div, div)
+    #             for div,name in reversed(TIMEDELTA_CHOICES)
+    #             if self.interval_hours % div == 0)
+    #             , empty)
     
     @property
     def interval_str(self):
@@ -293,26 +227,19 @@ class Config(models.Model):
                         empty)
     @property
     def next_scheduled(self):
-        return self.last_scheduled + timedelta(hours=self.interval_hours)
+        return self.last_scheduled + timedelta(hours=self.interval_hours) \
+               if self.last_scheduled \
+               else self.schedule_time
     
     @property
     def whole_periods_off(self):
         return (datetime.now()
-                - self.last_scheduled
+                - self.last_backup
                 + timedelta(hours=self.interval_hours)) / self.interval_hours
         
     def save(self, *args, **kwargs):
-        if not self.last_scheduled:
-            yesterday = datetime.today() - timedelta(days=1)
-            self.last_scheduled = datetime( yesterday.year
-                                          , yesterday.month
-                                          , yesterday.day
-                                          , self.schedule_time.hour
-                                          , self.schedule_time.minute
-                                          , self.schedule_time.second
-                                          )
-        else:
-            self.last_scheduled = self.next_scheduled
+        if datetime.now() >= self.next_scheduled:
+            self.last_scheduled = self.next_scheduled 
         return super(Config, self).save(*args, **kwargs)
     
 

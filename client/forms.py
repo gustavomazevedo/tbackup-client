@@ -5,12 +5,7 @@ from django import forms
 
 from client.models import (Origin, WebServer)
 
-TIMEDELTA_CHOICES = (
-    #(3600, 'hora(s)'),
-    (86400,'dia(s)'),
-    (604800,'semana(s)'),
-    (1296000,'quinzena(s)'),
-)
+from .constants import TIMEDELTA_CHOICES
 
 class OriginForm(forms.ModelForm):
     model = Origin
@@ -77,11 +72,12 @@ class ConfigForm(forms.ModelForm):
 class RegisterForm(forms.ModelForm):
     name = forms.RegexField(
 	    max_length=80,
-            label='Nome',
+      label='Nome',
 	    regex=r'^[A-Za-z][A-Za-z0-9_.]*',
 	    error_message=u'Somente caracteres alfanuméricos e símbolos "_" e ".". \n'
-                          u'Primeiro caractere é obrigatoriamente uma letra.')
-    
+                          u'Primeiro caractere é obrigatoriamente uma letra.'
+		)
+		
     def __init__(self, *args, **kwargs):
         super(RegisterForm, self).__init__(*args, **kwargs)
         instance = getattr(self, 'instance', None)
