@@ -73,7 +73,7 @@ class Destination(models.Model):
         
         #define quais destinations podem ser deletados
         dests_to_delete = [d for d in Destination.objects.exclude(name__in=destinations)
-                            if not any(c.destination == d for c in Config.objects.all())]
+                            if not any(s.destination == d for s in Schedule.objects.all())]
         for dest in dests_to_delete:
             dest.delete()
         #coleta todos os destinations ainda não cadastrados
@@ -175,20 +175,18 @@ class WebServer(models.Model):
                       apikey=None,
                       origin_id=None, files=None):
         return json_request(
-            url =u"%s/server/%s%s/" %
-            (
-                self.url,
-                u"%i/" % origin_id if origin_id else u"",
-                view_name
-            ),
+            url   =u"%(address)s/server/%(id)s%(view)s/" %
+                   {
+                     'address': self.url,
+                     'id'     : u"%i/" % origin_id if origin_id else u"",
+                     'view'   : view_name
+                   },
             method=method,
-            data=data,
+            data  =data,
             apikey=apikey,
-            files=files
+            files =files
         )
     
-
-
 
 #class Plan(models.Model):
 #    destination = models.ForeignKey('Destination')
@@ -197,16 +195,133 @@ class WebServer(models.Model):
 #    
 #    def __unicode__(self):
 #        return self.destination.name + unicode(self.interval)
-
+class LocalBackupQueue(models.Model):
     
-class Config(models.Model):
+    def queue(self, ):
+        pass
+    
+    def dequeue(self, ):
+        pass
+    
+    @staticmethod
+    def empty():
+        pass
+    
+    
+class Backup(models.Model):
+    IDLE          = 'ID'
+    RUNNING       = 'RU'
+    ERROR_RUNNING = 'ER'
+    WAITING       = 'WA'
+    SENDING       = 'SE'
+    ERROR_SENDING = 'ES'
+    FINISHED      = 'FI'
+    REMOVED_LOCAL = 'RL'
+    STATE_CHOICES = (
+        (IDLE         , u'Não Iniciado.'),
+        (RUNNING      , u'Executando backup local.'),
+        (ERROR_RUNNING, u'Erro ao tentar executar o backup local.'),
+        (WAITING      , u'Aguardando para enviar.'),
+        (SENDING      , u'Enviando para servidor.'),
+        (ERROR_SENDING, u'Erro ao tentar enviar para servidor.'),
+        (FINISHED     , u'Backup finalizado.')
+        (REMOVED_LOCAL, u'Cópia local removida. Restauro apenas online.')
+    )
+    SCHEDULED     = 'S'
+    EXTRAORDINARY = 'E'
+    KIND_CHOICES = (
+        (SCHEDULED    , 'Agendado'),
+        (EXTRAORDINARY, 'Especial'),
+    )
+    schedule  = models.ForeignKey('Schedule')
+    time      = models.DateTimeField()
+    local_name= models.CharField(max_length=256)
+    local_file= models.FileField(null=True)
+    size      = models.BigIntegerField()
+    destination_name = models.CharField(max_length=256)
+    kind = models.CharField(max_length=1,
+                            choices=KIND_CHOICES,
+                            default='A')
+    state = models.CharField(max_length=2,
+                             choices=STATE_CHOICES,
+                             default='I')
+    last_error = models.TextField(null=True)
+    
+    def advance_state(self):
+        if self.state == self.IDLE:
+            self.state = self.RUNNING
+        elif self.state == self.RUNNING:
+            self.state = self.WAITING
+        elif self.state == self.WAITING:
+            self.state = self.SENDING
+        elif self.state == self.SENDING:
+            self.state = self.FINISHED
+        elif self.state == self.FINISHED:
+            self.state = self.REMOVED_LOCAL
+        else:
+            #raise Exception('State: %s. Cannot advance state.' % self.state)
+            return
+            
+    
+    def run_local_backup(self, ):
+        if self.ERROR_RUNNING:
+            self.state = self.IDLE
+        if self.state != self.IDLE:
+            #raise Exception('State: %s. Cannot run local backup.' % self.state)
+            return
+        self.advance_state()
+        try:
+            pass
+            self.advance_state()
+        except:
+            import sys, traceback
+            
+            error_type, error, tb = sys.exc_info()
+            self.state = self.ERROR_RUNNING
+            
+                
+    def update_error(self, exc_info):
+        error_type, error, tb = info
+        self.last_error = \
+            """
+               %(error_type)s: %(error)s
+               ==============
+               %(traceback)s
+            """ % {
+                    'error_type': error_type,
+                    'error'     : error,
+                    'traceback' : tb
+                  }
+        
+    def send(self, ):
+        if self.ERROR_SENDING:
+            self.state = self.WAITING
+        if self.state != self.WAITING:
+            #raise Exception('State: %s. Cannot send backup' % self.state)
+            return
+            
+        self.advance_state()
+        try:
+            pass
+            self.advance_state()
+        except:
+            self.state = self.ERROR_SENDING
+        
+        return None
+    
+class Schedule(models.Model):
+    
+    TIMEDELTA_CHOICES = (
+        (  86400, 'dia(s)'),
+        ( 604800, 'semana(s)'),
+        (1209600, 'quinzena(s)'),
+    )
     destination    = models.ForeignKey('Destination', null=True)
     interval_hours = models.PositiveIntegerField(verbose_name='periodicidade')
     schedule_time  = models.DateTimeField()
     last_scheduled = models.DateTimeField(editable=False)
     last_backup    = models.DateTimeField(auto_now=True,
                                           verbose_name=u'data do último backup')
-    
     def __unicode__(self):
         return u"%s a cada %s" % (self.destination.name, self.interval_str)
     
@@ -222,7 +337,7 @@ class Config(models.Model):
     def interval_str(self):
         empty = (0, u"")
         return u"%i %s" % next(((self.interval_hours / div, name)
-                        for div,name in reversed(TIMEDELTA_CHOICES)
+                        for div,name in reversed(self.TIMEDELTA_CHOICES)
                         if self.interval_hours % div == 0),
                         empty)
     @property
@@ -240,7 +355,7 @@ class Config(models.Model):
     def save(self, *args, **kwargs):
         if datetime.now() >= self.next_scheduled:
             self.last_scheduled = self.next_scheduled 
-        return super(Config, self).save(*args, **kwargs)
+        return super(Schedule, self).save(*args, **kwargs)
     
 
 class BackupStatus(models.Model):

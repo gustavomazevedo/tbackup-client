@@ -14,11 +14,15 @@ from django.core.management.base import BaseCommand, make_option
 from tbackup_client.models       import (
                                           Origin,
                                           WebServer, 
-                                          Log, 
-                                          Config, 
-                                          Destination, 
-                                          BackupStatus,
+                                          #Log, 
+                                          #Config, 
+                                          #Destination, 
+                                          #BackupStatus,
+                                          Backup,
+                                          Schedule,
                                         )
+
+from django.db.models import F
 
 #PROJECT_DIR = os.path.normpath(os.path.join(
 #                    os.path.dirname(os.path.realpath(__file__)), '../../../'))
@@ -107,15 +111,66 @@ class BackupHandler():
 #        stdout, stderr = self.process(cmd)
 #        self.command_log(stdout, stderr)
     
-    def check_not_sent(self):
-        not_sent = Log.objects.filter(
-            local_status=True,
-            remote_status=False)
-        for log in not_sent:
+    def send_unsent_backups(self):
+        return [unsent.send() for unsent in Backup.objects.filter(status=Backup.WAITING)]
+        #unsent = Backup.objects.filter(status=Backup.WAITING)
+        #for backup in unsent:
+        #    backup.send()
+        
+    
+    def check_unsent(self):
+        unsent = Log.objects.filter(local_status =True,
+                                    remote_status=False)
+        for log in unsent:
             self.remote_backup(log)
             log.save()
+
+    def schedules_to_run_now(self, schedules, now):
+        filtered = []
+        for schedule in schedules:
+            dt = now - schedule.last_run
+            seconds = dt.seconds + 86400*dt.days
+            if seconds >= schedule.delta:
+                schedule.update_last_run(now)
+                schedule.save()
+                filtered.append(schedule)
+        return filtered
+    
+    def check_backups(self):
+        #gets pending schedules
+        all_schedules = Schedule.objects.all()
+        #current time
+        now = datetime.now()
+        now -= timedelta(microseconds=now.microsecond)
+        #filter schedules to run
+        filtered_schedules = self.schedules_to_run_now(all_schedules, now)
+        #nothing to do
+        if len(filtered_schedules) == 0:
+            return
+
+        backups = (Backup.objects.get_or_create(schedule =s,
+                                                time__gt =s.last_backup,
+                                                time__lte=now)
+                   for s in filtered_schedules)
+        new_backups     = (b for b, created in backups if created)
+        #running_backups = (b for b, created in backups if not created)
         
-    def check_backups(self): 
+        #for backup, created in backups:
+                                          
+        
+        for backup in new_backups:
+            backup.status = 'B'
+            backup.save_backup()
+              
+        
+        for schedule in filtered_schedules:
+            backup_job, created = Backup.objects.get_or_create(schedule=schedule,
+                                                               time__gt=schedule.last_backup,
+                                                               time__lte=now)
+            #already running
+            if not created:
+            
+        
         status = BackupStatus.objects.get_or_create(pk=1)[0]
         #print status.executing
         if status.executing:
