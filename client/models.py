@@ -207,6 +207,8 @@ class LocalBackupQueue(models.Model):
     def empty():
         pass
     
+def get_path_name(instance, filename):
+    return u'/'.join([instance.schedule.destination.name, filename])
     
 class Backup(models.Model):
     IDLE          = 'ID'
@@ -236,7 +238,8 @@ class Backup(models.Model):
     schedule  = models.ForeignKey('Schedule')
     time      = models.DateTimeField()
     local_name= models.CharField(max_length=256)
-    local_file= models.FileField(null=True)
+    local_file= models.FileField(upload_to=get_path_name,
+                                 null=True)
     size      = models.BigIntegerField()
     destination_name = models.CharField(max_length=256)
     kind = models.CharField(max_length=1,
@@ -246,6 +249,7 @@ class Backup(models.Model):
                              choices=STATE_CHOICES,
                              default='I')
     last_error = models.TextField(null=True)
+    
     
     def advance_state(self):
         if self.state == self.IDLE:
