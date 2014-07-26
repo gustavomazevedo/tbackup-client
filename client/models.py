@@ -224,8 +224,8 @@ class Backup(models.Model):
         (WAITING      , u'Aguardando para enviar.'),
         (SENDING      , u'Enviando para servidor.'),
         (ERROR_SENDING, u'Erro ao tentar enviar para servidor.'),
-        (FINISHED     , u'Backup finalizado.')
-        (REMOVED_LOCAL, u'Cópia local removida. Restauro apenas online.')
+        (FINISHED     , u'Backup finalizado.'),
+        (REMOVED_LOCAL, u'Cópia local removida. Restauro apenas online.'),
     )
     SCHEDULED     = 'S'
     EXTRAORDINARY = 'E'
