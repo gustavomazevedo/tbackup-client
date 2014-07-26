@@ -3,7 +3,7 @@ from django.test import Client
 from .models import (
     Origin,
     Destination,
-    Config,
+    Schedule,
     WebServer,
 )
 

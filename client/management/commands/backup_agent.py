@@ -186,7 +186,7 @@ class BackupHandler():
         
         now = datetime.now()
         now -= timedelta(microseconds=now.microsecond)
-        configs = Config.objects.all()
+        #configs = Config.objects.all()
         #print configs
         for config in configs:
             delta = now - config.last_backup
