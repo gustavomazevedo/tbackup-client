@@ -448,7 +448,7 @@ class Schedule(models.Model):
                 return None
     
     def trigger(self, dt):
-        return self.rem_seconds(dt) in self.last_run()[:1]
+        return self.rem_seconds(dt) in self.last_before(dt)[:1]
     
     
     def get_rule(self):
