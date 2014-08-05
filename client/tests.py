@@ -10,7 +10,7 @@ from .models import (
     RRule,
 )
 
-#from datetime import datetime
+from datetime import datetime, timedelta
 #rom django.utils.timezone import utc
 from django.conf import settings
 
@@ -24,13 +24,34 @@ PATH='/Users/gustavo/'
 # Create your tests here.
 class RuleCase(TestCase):
     
-    def test_create_rule(self):
-        rule = RRule(name=u'diário',
-                     description=u'uma vez por dia',
-                     frequency=RRule.DAILY)
-        rule.save()
+    def setUp(self):
+        self.daily_rule = RRule(name=u'diário',
+                                description=u'uma vez por dia',
+                                frequency=RRule.DAILY)
+        self.daily_rule.save()
         
+        self.now = datetime.now()
+        self.now -= timedelta(seconds=self.now.second) - timedelta(microseconds=self.now.microsecond)
+        params = {
+            'schedule_time': self.now + timedelta(hours=1),
+            'rule': self.daily_rule,
+        }
+        self.schedule = Schedule(**params)
+        self.schedule.save()
         
+    def test_rule_ok(self):
+        rule = RRule.objects.get(name=u'diário')
+        assert rule, self.daily_rule
+        
+    def test_schedule_time(self):
+        assert self.schedule.schedule_time, self.now + timedelta(hours=1)
+        
+    def test_next_run(self):
+        time = self.now + timedelta(hours=2)
+        assert self.schedule.next_run(time), self.now + timedelta(days=1, hours=1)
+    
+    
+    
 
 class DestinationCase(TestCase):
     pass

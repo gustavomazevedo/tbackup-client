@@ -409,11 +409,7 @@ class Schedule(models.Model):
         (1209600, 'quinzena(s)'),
     )
     destination    = models.ForeignKey('Destination', null=True)
-    interval_hours = models.PositiveIntegerField(verbose_name='periodicidade')
     schedule_time  = models.DateTimeField()
-    last_scheduled = models.DateTimeField(editable=False)
-    last_backup    = models.DateTimeField(auto_now=True,
-                                          verbose_name=u'data do último backup')
     rule           = models.ForeignKey('RRule',
                                        null=True,
                                        blank=True,
@@ -464,29 +460,29 @@ class Schedule(models.Model):
     #             if self.interval_hours % div == 0)
     #             , empty)
     
-    @property
-    def interval_str(self):
-        empty = (0, u"")
-        return u"%i %s" % next(((self.interval_hours / div, name)
-                        for div,name in reversed(self.TIMEDELTA_CHOICES)
-                        if self.interval_hours % div == 0),
-                        empty)
-    @property
-    def next_scheduled(self):
-        return self.last_scheduled + timedelta(hours=self.interval_hours) \
-               if self.last_scheduled \
-               else self.schedule_time
-    
-    @property
-    def whole_periods_off(self):
-        return (datetime.now()
-                - self.last_backup
-                + timedelta(hours=self.interval_hours)) / self.interval_hours
-        
-    def save(self, *args, **kwargs):
-        if datetime.now() >= self.next_scheduled:
-            self.last_scheduled = self.next_scheduled 
-        return super(Schedule, self).save(*args, **kwargs)
+    #@property
+    #def interval_str(self):
+    #    empty = (0, u"")
+    #    return u"%i %s" % next(((self.interval_hours / div, name)
+    #                    for div,name in reversed(self.TIMEDELTA_CHOICES)
+    #                    if self.interval_hours % div == 0),
+    #                    empty)
+    #@property
+    #def next_scheduled(self):
+    #    return self.last_scheduled + timedelta(hours=self.interval_hours) \
+    #           if self.last_scheduled \
+    #           else self.schedule_time
+    #
+    #@property
+    #def whole_periods_off(self):
+    #    return (datetime.now()
+    #            - self.last_backup
+    #            + timedelta(hours=self.interval_hours)) / self.interval_hours
+    #    
+    #def save(self, *args, **kwargs):
+    #    if datetime.now() >= self.next_scheduled:
+    #        self.last_scheduled = self.next_scheduled 
+    #    return super(Schedule, self).save(*args, **kwargs)
     
 
 class BackupStatus(models.Model):
