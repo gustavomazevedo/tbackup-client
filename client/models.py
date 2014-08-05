@@ -448,7 +448,10 @@ class Schedule(models.Model):
                 return None
     
     def trigger(self, dt):
-        return self.rem_seconds(dt) in self.last_before(dt)[:1]
+        last_before = self.last_before(dt)
+        if last_before is None:
+            return False
+        return self.rem_seconds(dt) == last_before
     
     
     def get_rule(self):
