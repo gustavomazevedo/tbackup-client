@@ -1,11 +1,13 @@
 # -*- coding: utf-8 -*-
 
-from datetime            import datetime, timedelta
-from requests.exceptions import ConnectionError
-from django.db           import models
-from django.conf         import settings
-from .constants          import TIMEDELTA_CHOICES, GET, POST
-from .functions          import json_request
+from datetime                 import datetime, timedelta
+from requests.exceptions      import ConnectionError
+from dateutil                 import rrule
+from django.db                import models
+from django.conf              import settings
+from django.utils.translation import ugettext_lazy as _  
+from .constants               import TIMEDELTA_CHOICES, GET, POST
+from .functions               import json_request
 
 # Create your models here.
 #class Destination(NameableMixin):
@@ -50,7 +52,92 @@ from .functions          import json_request
 #    
 #    @staticmethod
 #    def send(obj):
-        
+   
+class RRule(models.Model):
+    """
+    Adapted from django-schedule project:
+    https://github.com/thauber/django-schedule
+    
+    This defines a rule by which an event will recur.  This is defined by the
+    rrule in the dateutil documentation.
+
+    * name - the human friendly name of this kind of recursion.
+    * description - a short description describing this type of recursion.
+    * frequency - the base recurrence period
+    * param - extra params required to define this type of recursion. The params
+      should follow this format:
+
+        param = [rruleparam:value;]*
+        rruleparam = see list below
+        value = int[,int]*
+
+      The options are: (documentation for these can be found at
+      http://labix.org/python-dateutil#head-470fa22b2db72000d7abe698a5783a46b0731b57)
+        ** count
+        ** bysetpos
+        ** bymonth
+        ** bymonthday
+        ** byyearday
+        ** byweekno
+        ** byweekday
+        ** byhour
+        ** byminute
+        ** bysecond
+        ** byeaster
+    """
+    YEARLY  = 'YEARLY'
+    MONTHLY = 'MONTHLY' 
+    WEEKLY  = 'WEEKLY'  
+    DAILY   = 'DAILY'   
+    HOURLY  = 'HOURLY'  
+    MINUTELY= 'MINUTELY'
+    SECONDLY= 'SECONDLY'
+    
+    FREQUENCIES = (
+        (YEARLY  , _('Yearly')),
+        (MONTHLY , _('Monthly')),
+        (WEEKLY  , _('Weekly')),
+        (DAILY   , _('Daily')),
+        (HOURLY  , _('Hourly')),
+        (MINUTELY, _('Minutely')),
+        (SECONDLY, _('Secondly')),
+    )
+    name = models.CharField(_("name"), max_length=32)
+    description = models.TextField(_("description"))
+    frequency = models.CharField(_("frequency"), choices=FREQUENCIES, max_length=10)
+    params = models.TextField(_("params"), null=True, blank=True)
+
+    class Meta:
+        verbose_name = _('rule')
+        verbose_name_plural = _('rules')
+
+    def get_params(self):
+        """
+        >>> rule = RRule(params = "count:1;bysecond:1;byminute:1,2,4,5")
+        >>> rule.get_params()
+        {'count': 1, 'byminute': [1, 2, 4, 5], 'bysecond': 1}
+        """
+        if self.params is None:
+            return {}
+        params = self.params.split(';')
+        param_dict = []
+        for param in params:
+            param = param.split(':')
+            if len(param) == 2:
+                param = (str(param[0]),
+                           [int(p) for p in param[1]
+                                            .translate(None,'()[]')
+                                            .split(',')])
+                if len(param[1]) == 1:
+                    param = (param[0], param[1][0])
+                param_dict.append(param)
+        return dict(param_dict)
+
+    def __unicode__(self):
+        """Human readable string for Rule"""
+        return self.name
+
+     
 
 class Destination(models.Model):
     name = models.CharField(max_length=1024,
@@ -278,23 +365,22 @@ class Backup(models.Model):
             pass
             self.advance_state()
         except:
-            import sys, traceback
-            
-            error_type, error, tb = sys.exc_info()
+            import sys
+            self.update_error(sys.exc_info())
             self.state = self.ERROR_RUNNING
             
                 
     def update_error(self, exc_info):
-        error_type, error, tb = info
+        exc_type, exc_value, exc_traceback = exc_info
         self.last_error = \
             """
-               %(error_type)s: %(error)s
+               %(type)s: %(value)s
                ==============
                %(traceback)s
             """ % {
-                    'error_type': error_type,
-                    'error'     : error,
-                    'traceback' : tb
+                    'type'     : exc_type,
+                    'value'    : exc_value,
+                    'traceback': exc_traceback,
                   }
         
     def send(self, ):
@@ -309,6 +395,8 @@ class Backup(models.Model):
             pass
             self.advance_state()
         except:
+            import sys
+            self.update_error(sys.exc_info())
             self.state = self.ERROR_SENDING
         
         return None
@@ -326,9 +414,48 @@ class Schedule(models.Model):
     last_scheduled = models.DateTimeField(editable=False)
     last_backup    = models.DateTimeField(auto_now=True,
                                           verbose_name=u'data do último backup')
+    rule           = models.ForeignKey('RRule',
+                                       null=True,
+                                       blank=True,
+                                       verbose_name=_("rule"),
+                                       help_text=_("Selecione '----' para um evento não recorrente."))
     def __unicode__(self):
         return u"%s a cada %s" % (self.destination.name, self.interval_str)
     
+    
+    def rem_seconds(self, dt):
+        return dt - timedelta(seconds=dt.second) - timedelta(microseconds=dt.microsecond)
+    
+    def last_run(self, now):
+        if self.rule is not None:
+            return self.get_rule().after(self.rem_seconds(now), True)
+        else:
+            if self.scheduled_time <= now:
+                return self.scheduled_time
+            else:
+                return None
+    
+    def next_run(self, now):
+        if self.rule is not None:
+            return self.get_rule().after(self.rem_seconds(now), False)
+        else:
+            if self.scheduled_time > now:
+                return self.scheduled_time
+            else:
+                return None
+    
+    def get_rule(self):
+        if self.rule is not None:
+            p = {
+                'dtstart' : self.start,
+                'byhour': self.scheduled_time.hour,
+                'byminute': self.scheduled_time.minute,
+            }
+            params = self.rule.get_params()
+            params.update(p)
+            frequency = 'rrule.%s' % self.rule.frequency
+            return rrule.rrule(eval(frequency), **params)
+        
     #@property
     #def interval_tuple(self):
     #    empty = (0, 0)
@@ -404,3 +531,4 @@ class Log(models.Model):
     restore_link.short_description = 'Restaurar'
     restore_link.allow_tags = True
     
+

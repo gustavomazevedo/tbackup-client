@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 from django.test import TestCase
 from django.test import Client
 from .models import (
@@ -5,6 +7,7 @@ from .models import (
     Destination,
     Schedule,
     WebServer,
+    RRule,
 )
 
 #from datetime import datetime
@@ -19,6 +22,15 @@ PATH='/Users/gustavo/'
 #PATH='/home/gustavo.azevedo/Projects/'
 
 # Create your tests here.
+class RuleCase(TestCase):
+    
+    def test_create_rule(self):
+        rule = RRule(name=u'diário',
+                     description=u'uma vez por dia',
+                     frequency=RRule.DAILY)
+        rule.save()
+        
+        
 
 class DestinationCase(TestCase):
     pass
