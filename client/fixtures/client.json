@@ -1,0 +1,72 @@
+[
+    {
+        "pk": 1,
+        "model": "client.rrule",
+        "fields": {
+            "frequency": "YEARLY",
+            "params": null,
+            "name": "Anual",
+            "description": "uma vez por ano"
+        }
+    },
+    {
+        "pk": 2,
+        "model": "client.rrule",
+        "fields": {
+            "frequency": "MONTHLY",
+            "params": null,
+            "name": "Mensal",
+            "description": "uma vez por mês"
+        }
+    },
+    {
+        "pk": 3,
+        "model": "client.rrule",
+        "fields": {
+            "frequency": "WEEKLY",
+            "params": null,
+            "name": "Semanal",
+            "description": "uma vez por semana"
+        }
+    },
+    {
+        "pk": 4,
+        "model": "schedule.rrule",
+        "fields": {
+            "frequency": "DAILY",
+            "params": null,
+            "name": "Diário",
+            "description": "uma vez por dia"
+        }
+    },
+		{
+        "pk": 5,
+        "model": "schedule.rrule",
+        "fields": {
+            "frequency": "WEEKLY",
+            "params": "byweekday:[0,1,2,3,4]",
+            "name": "Diário",
+            "description": "de segunda à sexta"
+        }
+    },
+		{
+        "pk": 6,
+        "model": "schedule.rrule",
+        "fields": {
+            "frequency": "MONTHLY",
+            "params": "bysetpos:-1",
+            "name": "Diário",
+            "description": "último dia do mês"
+        }
+    },
+		{
+        "pk": 6,
+        "model": "schedule.rrule",
+        "fields": {
+            "frequency": "MONTHLY",
+            "params": "bysetpos:-1;byweekday:[0,1,2,3,4]",
+            "name": "Diário",
+            "description": "último dia útil do mês (seg à sex)"
+        }
+    },
+]
