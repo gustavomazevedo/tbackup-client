@@ -51,10 +51,10 @@ class RuleCase(TestCase):
         print self.now
         print time
         print self.schedule.schedule_time
-        f = self.schedule.next_run
+        f = self.schedule.next_after
         print f(time)
         print f(f(time))
-        self.assertEqual(self.schedule.next_run(time), self.now + timedelta(days=1, hours=1))
+        self.assertEqual(self.schedule.next_after(time), self.now + timedelta(days=1, hours=1))
     
     def test_trigger(self):
         time = self.now + timedelta(hours=1)
