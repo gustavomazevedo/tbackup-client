@@ -31,7 +31,7 @@ class RuleCase(TestCase):
         self.daily_rule.save()
         
         self.now = datetime.now()
-        self.now -= timedelta(seconds=self.now.second) - timedelta(microseconds=self.now.microsecond)
+        self.now -= timedelta(seconds=self.now.second) + timedelta(microseconds=self.now.microsecond)
         params = {
             'schedule_time': self.now + timedelta(hours=1),
             'rule': self.daily_rule,
@@ -41,14 +41,20 @@ class RuleCase(TestCase):
         
     def test_rule_ok(self):
         rule = RRule.objects.get(name=u'diário')
-        assert rule, self.daily_rule
+        self.assertEqual(rule, self.daily_rule)
         
     def test_schedule_time(self):
-        assert self.schedule.schedule_time, self.now + timedelta(hours=1)
+        self.assertEqual(self.schedule.schedule_time, self.now + timedelta(hours=1))
         
     def test_next_run(self):
         time = self.now + timedelta(hours=2)
-        assert self.schedule.next_run(time), self.now + timedelta(days=1, hours=1)
+        print self.now
+        print time
+        print self.schedule.schedule_time
+        f = self.schedule.next_run
+        print f(time)
+        print f(f(time))
+        self.assertEqual(self.schedule.next_run(time), self.now + timedelta(days=1, hours=1))
     
     
     

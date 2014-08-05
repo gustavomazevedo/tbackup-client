@@ -415,6 +415,7 @@ class Schedule(models.Model):
                                        blank=True,
                                        verbose_name=_("rule"),
                                        help_text=_("Selecione '----' para um evento não recorrente."))
+    
     def __unicode__(self):
         return u"%s a cada %s" % (self.destination.name, self.interval_str)
     
@@ -443,9 +444,9 @@ class Schedule(models.Model):
     def get_rule(self):
         if self.rule is not None:
             p = {
-                'dtstart' : self.start,
-                'byhour': self.scheduled_time.hour,
-                'byminute': self.scheduled_time.minute,
+                'dtstart' : self.schedule_time,
+                'byhour': self.schedule_time.hour,
+                'byminute': self.schedule_time.minute,
             }
             params = self.rule.get_params()
             params.update(p)
