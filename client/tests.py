@@ -56,7 +56,9 @@ class RuleCase(TestCase):
         print f(f(time))
         self.assertEqual(self.schedule.next_run(time), self.now + timedelta(days=1, hours=1))
     
-    
+    def test_trigger(self):
+        time = self.now + timedelta(hours=1)
+        self.assertTrue(self.schedule.trigger(time))
     
 
 class DestinationCase(TestCase):

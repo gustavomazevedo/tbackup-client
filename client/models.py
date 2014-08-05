@@ -423,23 +423,33 @@ class Schedule(models.Model):
     def rem_seconds(self, dt):
         return dt - timedelta(seconds=dt.second) - timedelta(microseconds=dt.microsecond)
     
-    def last_run(self, now):
+    def last_run(self):
+        return self.last_before(datetime.now())
+    
+    def next_run(self):
+        return self.next_after(datetime.now())
+    
+    def last_before(self, dt):
         if self.rule is not None:
-            return self.get_rule().after(self.rem_seconds(now), True)
+            return self.get_rule().before(self.rem_seconds(dt), True)
         else:
             if self.scheduled_time <= now:
                 return self.scheduled_time
             else:
                 return None
-    
-    def next_run(self, now):
+            
+    def next_after(self, dt):
         if self.rule is not None:
-            return self.get_rule().after(self.rem_seconds(now), False)
+            return self.get_rule().after(self.rem_seconds(dt), False)
         else:
-            if self.scheduled_time > now:
+            if self.scheduled_time > dt:
                 return self.scheduled_time
             else:
                 return None
+    
+    def trigger(self, dt):
+        return self.rem_seconds(dt) in self.last_run[:1]
+    
     
     def get_rule(self):
         if self.rule is not None:
