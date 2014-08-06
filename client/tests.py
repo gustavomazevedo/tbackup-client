@@ -53,7 +53,7 @@ class RuleCase(TestCase):
     
     def test_next_run(self):
         time = self.now + timedelta(hours=2)
-        self.assertEqual(self.schedule.next_run(time), self.now + timedelta(days=1, hours=1))
+        self.assertEqual(self.schedule.next_after(time), self.now + timedelta(days=1, hours=1))
     
     
     def test_trigger(self):
