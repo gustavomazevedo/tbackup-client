@@ -45,15 +45,14 @@ class RuleCase(TestCase):
         
     def test_schedule_time(self):
         self.assertEqual(self.schedule.schedule_time, self.now + timedelta(hours=1))
-        
+    
+    def test_schedule_filter_by_time(self):
+        schedules = Schedule.objects.filter(schedule_time__hour=self.schedule.schedule_time.hour,
+                                           schedule_time__minute=self.schedule.schedule_time.minute)
+        self.assertIn(self.schedule, schedules)
+    
     def test_next_run(self):
         time = self.now + timedelta(hours=2)
-        print self.now
-        print time
-        print self.schedule.schedule_time
-        f = self.schedule.next_run
-        print f(time)
-        print f(f(time))
         self.assertEqual(self.schedule.next_run(time), self.now + timedelta(days=1, hours=1))
     
     

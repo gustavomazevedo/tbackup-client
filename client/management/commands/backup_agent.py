@@ -137,11 +137,18 @@ class BackupHandler():
         return filtered
     
     def check_backups(self):
-        #gets pending schedules
-        all_schedules = Schedule.objects.all()
         #current time
         now = datetime.now()
-        now -= timedelta(microseconds=now.microsecond)
+        now -= timedelta(seconds=now.second) + timedelta(microseconds=now.microsecond)
+        
+        last_minute = now - timedelta(minutes=1)
+        
+        #gets schedules to run time
+        schedules = Schedule.objects.filter(schedule_time__hour=now.hour,
+                                            schedule_time__minute=now.minute)
+        
+        if len(schedules) == 0: return
+        
         #filter schedules to run
         filtered_schedules = self.schedules_to_run_now(all_schedules, now)
         #nothing to do
