@@ -5,8 +5,8 @@ from requests.exceptions      import ConnectionError
 from dateutil                 import rrule
 from django.db                import models
 from django.conf              import settings
-from django.utils.translation import ugettext_lazy as _  
-from .constants               import TIMEDELTA_CHOICES, GET, POST
+from django.utils.translation import ugettext_lazy as _
+from .constants               import GET, POST
 from .functions               import json_request
 
 # Create your models here.
@@ -104,7 +104,9 @@ class RRule(models.Model):
     )
     name = models.CharField(_("name"), max_length=32)
     description = models.TextField(_("description"))
-    frequency = models.CharField(_("frequency"), choices=FREQUENCIES, max_length=10)
+    frequency = models.CharField(_("frequency"),
+                                 choices=FREQUENCIES,
+                                 max_length=10)
     params = models.TextField(_("params"), null=True, blank=True)
 
     class Meta:
@@ -126,7 +128,7 @@ class RRule(models.Model):
             if len(param) == 2:
                 param = (str(param[0]),
                            [int(p) for p in param[1]
-                                            .translate(None,'()[]')
+                                            .translate(None, '()[]')
                                             .split(',')])
                 if len(param[1]) == 1:
                     param = (param[0], param[1][0])
@@ -140,34 +142,44 @@ class RRule(models.Model):
      
 
 class Destination(models.Model):
+    """
+    """
     name = models.CharField(max_length=1024,
                             verbose_name=u"nome",
                             primary_key=True)
-    
+
     class Meta:
         verbose_name = u"destino"
         ordering = [u"name"]
-        
+
     def __unicode__(self):
         return self.name
-    
+
     @staticmethod
     def update(origin_id):
         try:
-            destinations = WebServer.get().destinations(origin_id).get('destinations', None)
+            destinations = WebServer.get() \
+                           .destinations(origin_id) \
+                           .get('destinations', None)
         except ConnectionError: 
             return #retorna silenciosamente (considera os destinos já cadastrados)
-        
+
         #define quais destinations podem ser deletados
-        dests_to_delete = [d for d in Destination.objects.exclude(name__in=destinations)
-                            if not any(s.destination == d for s in Schedule.objects.all())]
+        dests_to_delete = [
+            d
+            for d in Destination.objects.exclude(name__in=destinations)
+            if not any(s.destination == d for s in Schedule.objects.all())
+        ]
         for dest in dests_to_delete:
             dest.delete()
         #coleta todos os destinations ainda não cadastrados
-        dests_to_add = [dn for dn in destinations
-                      if not any(dn == d.name for d in Destination.objects.all())]
-        for dn in dests_to_add:
-            Destination.objects.create(name=dn)
+        dests_to_add = [
+            dn
+            for dn in destinations
+            if not any(dn == d.name for d in Destination.objects.all())
+        ]
+        for destname in dests_to_add:
+            Destination.objects.create(name=destname)
 
 class Origin(models.Model):
     name = models.CharField(max_length=1024,
@@ -176,41 +188,41 @@ class Origin(models.Model):
     #                                 editable=False,
     #                                 verbose_name=u'registrado')
     remote_id = models.BigIntegerField(editable=False)
-    
+
     class Meta:
         verbose_name = u"origem"
         verbose_name_plural = u"origem"
-    
+
     def __unicode__(self):
         return self.name
-    
+
     @staticmethod
     def get():
         return Origin.objects.filter(pk=1) or None
-    
+
     @staticmethod
     def register(name):
         return WebServer.get().register(name)
-        
+
     @staticmethod
     def check_availability(name):
         return WebServer.get().check_availability(name)
 
 class WebServer(models.Model):
-    name   = models.CharField(max_length=80,
-                              verbose_name=u"nome")
-    apikey = models.TextField(verbose_name = u"chave API",
+    name        = models.CharField(max_length=80,
+                                   verbose_name=u"nome")
+    apikey      = models.TextField(verbose_name=u"chave API",
                               editable=False)
     url         = models.CharField(max_length=1024)
     api_url     = models.CharField(max_length=1024)
     api_version = models.CharField(max_length=20)
-    
+
     def __unicode__(self):
         return self.name
-    
+
     class Meta:
         verbose_name_plural = u"web server"
-        
+
     @staticmethod
     def get():
         #import ipdb; ipdb.set_trace()
@@ -223,8 +235,7 @@ class WebServer(models.Model):
                 api_url=settings.WEBSERVER_API_URL,
                 api_version=settings.WEBSERVER_API_VERSION
             )
-    
-    
+
     def check_availability(self, origin_name):
         #import ipdb; ipdb.set_trace()
         return self.remote_action(view_name= u"origin_available",
@@ -423,23 +434,36 @@ class Schedule(models.Model):
     def rem_seconds(self, dt):
         return dt - timedelta(seconds=dt.second) - timedelta(microseconds=dt.microsecond)
     
-    def last_run(self, now):
+    def last_run(self):
+        return self.last_before(datetime.now())
+    
+    def next_run(self):
+        return self.next_after(datetime.now())
+    
+    def last_before(self, dt):
         if self.rule is not None:
-            return self.get_rule().after(self.rem_seconds(now), True)
+            return self.get_rule().before(self.rem_seconds(dt), True)
         else:
             if self.scheduled_time <= now:
                 return self.scheduled_time
             else:
                 return None
-    
-    def next_run(self, now):
+            
+    def next_after(self, dt):
         if self.rule is not None:
-            return self.get_rule().after(self.rem_seconds(now), False)
+            return self.get_rule().after(self.rem_seconds(dt), False)
         else:
-            if self.scheduled_time > now:
+            if self.scheduled_time > dt:
                 return self.scheduled_time
             else:
                 return None
+    
+    def trigger(self, dt):
+        last_before = self.last_before(dt)
+        if last_before is None:
+            return False
+        return self.rem_seconds(dt) == last_before
+    
     
     def get_rule(self):
         if self.rule is not None:

@@ -4,10 +4,11 @@ import os
 import json
 import gzip
 import requests
-
-from datetime    import datetime, timedelta
+from datetime import (
+                       timedelta,
+                       datetime,
+                     )
 from Crypto.Hash import SHA
-
 from django.conf                 import settings
 from django.core.management      import call_command
 from django.core.management.base import BaseCommand, make_option
@@ -112,7 +113,8 @@ class BackupHandler():
 #        self.command_log(stdout, stderr)
     
     def send_unsent_backups(self):
-        return [unsent.send() for unsent in Backup.objects.filter(status=Backup.WAITING)]
+        return [unsent.send()
+                for unsent in Backup.objects.filter(status=Backup.WAITING)]
         #unsent = Backup.objects.filter(status=Backup.WAITING)
         #for backup in unsent:
         #    backup.send()
