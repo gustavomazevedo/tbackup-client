@@ -552,6 +552,5 @@ class Schedule(models.Model):
 #            self.count = 0
 #            self.executing = False
 #        super(BackupStatus, self).save(*args, **kwargs)
-    
-3    
+
 
