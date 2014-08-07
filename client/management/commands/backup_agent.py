@@ -4,11 +4,10 @@ import os
 import json
 import gzip
 import requests
-from datetime import (
-                       timedelta,
-                       datetime,
-                     )
+
+from datetime    import datetime, timedelta
 from Crypto.Hash import SHA
+
 from django.conf                 import settings
 from django.core.management      import call_command
 from django.core.management.base import BaseCommand, make_option
@@ -113,20 +112,24 @@ class BackupHandler():
 #        self.command_log(stdout, stderr)
     
     def send_unsent_backups(self):
-        return [unsent.send()
-                for unsent in Backup.objects.filter(status=Backup.WAITING)]
-        #unsent = Backup.objects.filter(status=Backup.WAITING)
-        #for backup in unsent:
-        #    backup.send()
-        
-    
-    def check_unsent(self):
-        unsent = Log.objects.filter(local_status =True,
-                                    remote_status=False)
-        for log in unsent:
-            self.remote_backup(log)
-            log.save()
+        return [unsent.send() for unsent in Backup.objects.filter(Q(state=Backup.WAITING) |
+                                                                  Q(state=Backup.ERROR_SENDING))]
 
+    def retry_backups(self):
+        dt = functions.normalize_time(datetime.now())
+        backups = Backup.objects.filter(Q(state=Backup.IDLE) |
+                                        Q(state=Backup.ERROR_RUNNING),
+                                        time__lte=dt)
+        for b in backups:
+            b.backup()
+            Backup.objects.create(schedule=b.schedule,
+                                  time=b.next_run(),
+                                  state=Backup.IDLE)
+            
+        #return [b.backup() for b in Backup.obkects.filter(Q(state=Backup.IDLE) |
+        #                                                  Q(state=Backup.ERROR_RUNNING))]
+    
+    
     def schedules_to_run_now(self, schedules, now):
         filtered = []
         for schedule in schedules:
@@ -138,18 +141,23 @@ class BackupHandler():
                 filtered.append(schedule)
         return filtered
     
-    def check_backups(self):
+    def get_schedules(self, dt):
+        schedules = Schedule.objects.filter(schedule_time__hour=dt.hour,
+                                            schedule_time__minute=dt.minute)
+        return [s for s in schedules if s.trigger(dt)]
+        
+    def trigger_backups(self):
         #current time
         now = datetime.now()
         now -= timedelta(seconds=now.second) + timedelta(microseconds=now.microsecond)
-        
-        last_minute = now - timedelta(minutes=1)
-        
-        #gets schedules to run time
-        schedules = Schedule.objects.filter(schedule_time__hour=now.hour,
-                                            schedule_time__minute=now.minute)
-        
+        #gets schedules to run
+        schedules = self.get_schedules(now)
         if len(schedules) == 0: return
+        
+        for s in schedules:
+            backup, created = Backup.objects.get_or_create(schedule=s,
+                                                           time=now,
+                            
         
         #filter schedules to run
         filtered_schedules = self.schedules_to_run_now(all_schedules, now)

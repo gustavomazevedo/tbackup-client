@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 
-from datetime                 import datetime, timedelta
+from datetime                 import datetime, timedelta, time
 from requests.exceptions      import ConnectionError
 from dateutil                 import rrule
 from django.db                import models
 from django.conf              import settings
 from django.utils.translation import ugettext_lazy as _
+from django.core.urlresolvers import reverse
 from .constants               import GET, POST
 from .functions               import json_request
 
@@ -89,18 +90,18 @@ class RRule(models.Model):
     MONTHLY = 'MONTHLY' 
     WEEKLY  = 'WEEKLY'  
     DAILY   = 'DAILY'   
-    HOURLY  = 'HOURLY'  
-    MINUTELY= 'MINUTELY'
-    SECONDLY= 'SECONDLY'
+    #HOURLY  = 'HOURLY'  
+    #MINUTELY= 'MINUTELY'
+    #SECONDLY= 'SECONDLY'
     
     FREQUENCIES = (
         (YEARLY  , _('Yearly')),
         (MONTHLY , _('Monthly')),
         (WEEKLY  , _('Weekly')),
         (DAILY   , _('Daily')),
-        (HOURLY  , _('Hourly')),
-        (MINUTELY, _('Minutely')),
-        (SECONDLY, _('Secondly')),
+        #(HOURLY  , _('Hourly')),
+        #(MINUTELY, _('Minutely')),
+        #(SECONDLY, _('Secondly')),
     )
     name = models.CharField(_("name"), max_length=32)
     description = models.TextField(_("description"))
@@ -309,14 +310,14 @@ def get_path_name(instance, filename):
     return u'/'.join([instance.schedule.destination.name, filename])
     
 class Backup(models.Model):
-    IDLE          = 'ID'
-    RUNNING       = 'RU'
-    ERROR_RUNNING = 'ER'
-    WAITING       = 'WA'
-    SENDING       = 'SE'
-    ERROR_SENDING = 'ES'
-    FINISHED      = 'FI'
-    REMOVED_LOCAL = 'RL'
+    IDLE          = 'IDLE'
+    RUNNING       = 'RUNNING'
+    ERROR_RUNNING = 'ERROR_RUNNING'
+    WAITING       = 'WAITING'
+    SENDING       = 'SENDING'
+    ERROR_SENDING = 'ERROR_SENDING'
+    FINISHED      = 'FINISHED'
+    REMOVED_LOCAL = 'REMOVED_LOCAL'
     STATE_CHOICES = (
         (IDLE         , u'Não Iniciado.'),
         (RUNNING      , u'Executando backup local.'),
@@ -327,27 +328,47 @@ class Backup(models.Model):
         (FINISHED     , u'Backup finalizado.'),
         (REMOVED_LOCAL, u'Cópia local removida. Restauro apenas online.'),
     )
-    SCHEDULED     = 'S'
-    EXTRAORDINARY = 'E'
+    SCHEDULED     = 'SCHEDULED'
+    EXTRAORDINARY = 'EXTRAORDINARY'
     KIND_CHOICES = (
         (SCHEDULED    , 'Agendado'),
         (EXTRAORDINARY, 'Especial'),
     )
+    TIMEFORMAT = '%Y%m%d%H%M'
+    name      = models.CharField(max_length=256)
     schedule  = models.ForeignKey('Schedule')
     time      = models.DateTimeField()
-    local_name= models.CharField(max_length=256)
     local_file= models.FileField(upload_to=get_path_name,
                                  null=True)
-    size      = models.BigIntegerField()
-    destination_name = models.CharField(max_length=256)
-    kind = models.CharField(max_length=1,
+    size      = models.BigIntegerField(null=True)
+    destination_name = models.CharField(max_length=256, null=True)
+    kind = models.CharField(max_length=13,
                             choices=KIND_CHOICES,
-                            default='A')
-    state = models.CharField(max_length=2,
+                            default=SCHEDULED)
+    state = models.CharField(max_length=13,
                              choices=STATE_CHOICES,
-                             default='I')
+                             default=IDLE)
     last_error = models.TextField(null=True)
     
+    def __unicode__(self, ):
+        return self.name
+    
+    def get_name(self):
+        return u'%(origin_name)s_%(dt)s_%(kind)s' % {
+            'origin_name': Origin.get().name,
+            'dt'         : time.strftime(self.TIMEFORMAT, self.time),
+            'kind'       : self.kind,
+        }
+    
+    def restore_link(self):
+        if self.state in (self.FINISHED, self.REMOVED_LOCAL):
+            return '<a href="%(restore)s">Restore<img src="%(image)s"/></a>' % {
+                'restore': reverse('url_restore', args=(self.id,)),
+                'image'  : '%simg/Refresh.png' % settings.STATIC_URL, 
+            }
+        return ''
+    restore_link.short_description = 'Restaurar'
+    restore_link.allow_tags = True
     
     def advance_state(self):
         if self.state == self.IDLE:
@@ -364,8 +385,20 @@ class Backup(models.Model):
             #raise Exception('State: %s. Cannot advance state.' % self.state)
             return
             
+    def update_error(self, exc_info):
+        exc_type, exc_value, exc_traceback = exc_info
+        self.last_error = \
+            """
+               %(type)s: %(value)s
+               ==============
+               %(traceback)s
+            """ % {
+                    'type'     : exc_type,
+                    'value'    : exc_value,
+                    'traceback': exc_traceback,
+                  }
     
-    def run_local_backup(self, ):
+    def backup(self, ):
         if self.ERROR_RUNNING:
             self.state = self.IDLE
         if self.state != self.IDLE:
@@ -379,20 +412,7 @@ class Backup(models.Model):
             import sys
             self.update_error(sys.exc_info())
             self.state = self.ERROR_RUNNING
-            
-                
-    def update_error(self, exc_info):
-        exc_type, exc_value, exc_traceback = exc_info
-        self.last_error = \
-            """
-               %(type)s: %(value)s
-               ==============
-               %(traceback)s
-            """ % {
-                    'type'     : exc_type,
-                    'value'    : exc_value,
-                    'traceback': exc_traceback,
-                  }
+        
         
     def send(self, ):
         if self.ERROR_SENDING:
@@ -444,7 +464,7 @@ class Schedule(models.Model):
         if self.rule is not None:
             return self.get_rule().before(self.rem_seconds(dt), True)
         else:
-            if self.scheduled_time <= now:
+            if self.scheduled_time <= dt:
                 return self.scheduled_time
             else:
                 return None
@@ -510,46 +530,28 @@ class Schedule(models.Model):
     #    return super(Schedule, self).save(*args, **kwargs)
     
 
-class BackupStatus(models.Model):
-    executing = models.BooleanField(default=False)
-    count = models.IntegerField(default=0)
+#class BackupStatus(models.Model):
+#    executing = models.BooleanField(default=False)
+#    count = models.IntegerField(default=0)
+#    
+#    class Meta:
+#        verbose_name_plural = 'backup status'
+#        
+#    def save(self, *args, **kwargs):
+#        '''
+#        A cada 60 execuções (= 1 hora) que se passam com executing = True,
+#        reseta-o para False, para prevenir que uma queda do servidor prenda
+#        o status em True indefinidamente.
+#        '''
+#        if self.executing:
+#            self.count += 1
+#        else:
+#            self.count = 0
+#            
+#        if self.count >= 60:
+#            self.count = 0
+#            self.executing = False
+#        super(BackupStatus, self).save(*args, **kwargs)
     
-    class Meta:
-        verbose_name_plural = 'backup status'
-        
-    def save(self, *args, **kwargs):
-        '''
-        A cada 60 execuções (= 1 hora) que se passam com executing = True,
-        reseta-o para False, para prevenir que uma queda do servidor prenda
-        o status em True indefinidamente.
-        '''
-        if self.executing:
-            self.count += 1
-        else:
-            self.count = 0
-            
-        if self.count >= 60:
-            self.count = 0
-            self.executing = False
-        super(BackupStatus, self).save(*args, **kwargs)
-    
-class Log(models.Model):
-    #origin = models.ForeignKey('Origin')
-    destination = models.ForeignKey('Destination')
-    date = models.DateTimeField(verbose_name='data')
-    filename = models.CharField(max_length=1024, verbose_name='arquivo')
-    local_status = models.BooleanField() 
-    remote_status = models.BooleanField()
-    
-    def __unicode__(self):
-        return self.filename
-    
-    def restore_link(self):
-        if self.remote_status:
-            return '<a href="/tbackup_client/restore/%s">Restore<img src="/static/img/Refresh.png"/></a>' % self.id
-        return ''
-    
-    restore_link.short_description = 'Restaurar'
-    restore_link.allow_tags = True
-    
+3    
 
