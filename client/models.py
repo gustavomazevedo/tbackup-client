@@ -434,11 +434,12 @@ class Backup(models.Model):
     
 class Schedule(models.Model):
     
-    TIMEDELTA_CHOICES = (
-        (  86400, 'dia(s)'),
-        ( 604800, 'semana(s)'),
-        (1209600, 'quinzena(s)'),
-    )
+    #TIMEDELTA_CHOICES = (
+    #    (  86400, 'dia(s)'),
+    #    ( 604800, 'semana(s)'),
+    #    (1209600, 'quinzena(s)'),
+    #)
+    
     destination    = models.ForeignKey('Destination', null=True)
     schedule_time  = models.DateTimeField()
     rule           = models.ForeignKey('RRule',

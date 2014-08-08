@@ -156,7 +156,9 @@ class BackupHandler():
         
         for s in schedules:
             backup, created = Backup.objects.get_or_create(schedule=s,
-                                                           time=now,
+                                                           time=now)
+            b.backup()
+            b.send(Webserver.get())
                             
         
         #filter schedules to run
