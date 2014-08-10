@@ -398,7 +398,7 @@ class Backup(models.Model):
                     'traceback': exc_traceback,
                   }
     
-    def backup(self, ):
+    def backup(self):
         if self.ERROR_RUNNING:
             self.state = self.IDLE
         if self.state != self.IDLE:
@@ -413,6 +413,9 @@ class Backup(models.Model):
             self.update_error(sys.exc_info())
             self.state = self.ERROR_RUNNING
         
+        #schedule next backup
+        Backup.objects.create(schedule=self.schedule,
+                                  time=self.schedule.next_run())
         
     def send(self, ):
         if self.ERROR_SENDING:
@@ -429,9 +432,118 @@ class Backup(models.Model):
             import sys
             self.update_error(sys.exc_info())
             self.state = self.ERROR_SENDING
+            
         
         return None
+
+    def local_backup(self):
+        dt = str(config.last_backup).replace(' ','_').replace(':','-')
+        self.date = dt[:dt.rfind('.')]
+        
+        origin = Origin.objects.get(pk=1)
+        filename = origin.name + '_' + self.date
+        
+        installed_apps = settings.INSTALLED_APPS
+        apps = [a for a in installed_apps
+                if (not (a.startswith('django') or a.startswith('tbackup')))]
+        
+        #print 'client: apps'
+        #print apps       
+        #print 'FILENAME'
+        #print filename
+        
+        f = open(os.path.join(TBACKUP_DUMP_DIR,filename), "wb")
+        call_command('dumpdata', *apps, stdout=f)
+        f.close()
+                
+        newfilename = filename + '.db.gz'
+        
+        f_in  = open(os.path.join(TBACKUP_DUMP_DIR,filename), 'rb')
+        f_out = gzip.open(os.path.join(TBACKUP_DUMP_DIR,newfilename), 'wb',9)
+        
+        f_out.writelines(f_in)
+        f_out.close()
+        f_in.close()
+        os.remove(os.path.join(TBACKUP_DUMP_DIR,filename))
+        
+        log.filename = newfilename
+        log.local_status = True
+
     
+    def remote_backup(self, log):
+        #from base64 import b64encode
+        sha1 = SHA.new()
+        #with open(os.path.join(TBACKUP_DUMP_DIR,log.filename), 'rb') as f:
+        #    raw_data = str()
+        #    encoded_string = str()
+        #    #9KB(9216) block:
+        #    #- multiple of 16 (2bytes) for sha1 to work in chunks
+        #    #- multiple of 24 (3bytes) for b64encode to work in chunks 
+        #    #- near 8KB for optimal sha1 speed
+        #    for data in iter(lambda: f.read(9216), b''):
+        #        raw_data += data
+        #        encoded_string += b64encode(data)
+        #        sha1.update(data)
+        #    sha1sum = sha1.hexdigest()
+        #     
+        #value = {
+        #           'destination' : 'Gruyere - LPS',
+        #           'file' : encoded_string,
+        #           'filename' : log.filename,
+        #           #'sha1sum': self.get_sha1sum(raw_data),
+        #           'sha1sum': sha1sum,
+        #           #'origin_pubkey' : origin_pubkey
+        #           'origin_name' : Origin.objects.get(pk=1).name,
+        #          }
+        #request_message = {
+        #                   'error' : False,
+        #                   'encrypted' : False,
+        #                   'key': False,
+        #                   'value' : value
+        #                 }
+        
+        
+        ws = WebServer.objects.get(pk=1)
+        #url = ws.url + 'tbackup_server/backup/'
+        #print url
+        #url = self._resolve_url('/a/creative/uploadcreative')
+        #url = 'http://127.0.0.1:8080/server/backup/'
+        f = open(os.path.join(TBACKUP_DUMP_DIR,log.filename), 'rb')
+        sha1.update(f.read())
+        f.seek(0)
+        files = {'file': (log.filename,f)}
+        #data = {'destination': log.destination.name,
+        #        'sha1sum' : sha1.hexdigest(),
+        #        'date' : str(log.date),
+        #        'origin_name' : Origin.objects.get(pk=1).name}
+        #req_msg = {'error' : 'false', 
+        #           'encrypted' : 'false', 
+        #           'key' : 'false',
+        #           'value' : json.dumps(data)}
+        response = requests.post(url, files=files, data=req_msg, verify=False)
+        
+        #print 'client:'
+        #print response.status_code
+        
+        if response.status_code != 200:
+            print 'response error'
+            print response.status_code
+            log.remote_status = False
+            return
+        
+        response_text = json.loads(response.text)
+        print response_text
+        #if response_text['error']:
+        #    print 'content error'
+        #    print response_text
+        #    log.remote_status = False
+        #    return
+        
+        log.remote_status = True
+        
+        return None
+
+
 class Schedule(models.Model):
     
     #TIMEDELTA_CHOICES = (

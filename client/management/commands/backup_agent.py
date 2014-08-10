@@ -11,7 +11,8 @@ from Crypto.Hash import SHA
 from django.conf                 import settings
 from django.core.management      import call_command
 from django.core.management.base import BaseCommand, make_option
-from tbackup_client.models       import (
+from django.db.models            import F, Q
+from client.models               import (
                                           Origin,
                                           WebServer, 
                                           #Log, 
@@ -21,8 +22,7 @@ from tbackup_client.models       import (
                                           Backup,
                                           Schedule,
                                         )
-
-from django.db.models import F
+from client import functions
 
 #PROJECT_DIR = os.path.normpath(os.path.join(
 #                    os.path.dirname(os.path.realpath(__file__)), '../../../'))
@@ -33,17 +33,36 @@ TBACKUP_DUMP_DIR = settings.TBACKUP_DUMP_DIR
 
 class Command(BaseCommand):
     option_list = BaseCommand.option_list + (
-        make_option('--check-backups',
-                    '-e',
+        make_option('--backup-trigger',
+                    '-b',
                     action='store_true',
-                    dest  ='check_backups',
-                    help  ='Checks up backup jobs and runs them if interval is reached'
+                    dest  ='trigger_backups',
+                    help  =('Backs up data and sends backups across server if '
+                    'it''s scheduled to run at the date and time of execution')
         ),
-        make_option('--check-not-sent',
-                    '-c',
+        make_option('--schedule-jobs',
+                    '-j',
                     action='store_true',
-                    dest  ='check_not_sent',
-                    help  ='Sends pending local backups to remote server'
+                    dest  ='schedule_missing_jobs',
+                    help  ='Schedule missing future jobs (in case of failure in the past)'
+        ),
+        make_option('--retry-backup',
+                    '-r',
+                    action='store_true',
+                    dest  ='retry_failed_backups',
+                    help  ='Retry backing up (locally) failed past attempts'
+        ),
+        make_option('--send-backups',
+                    '-s',
+                    action='store_true',
+                    dest  ='send_unsent_backups',
+                    help  ='Send unsent backups to WebServer'
+        ),
+        make_option('--all-tasks',
+                    '-a',
+                    action='store_true',
+                    dest  ='all_missing_tasks',
+                    help  ='Does -j, -r and then -s'
         ),
 #        make_option('--fill-data',
 #                    '-f',
@@ -111,238 +130,76 @@ class BackupHandler():
 #        stdout, stderr = self.process(cmd)
 #        self.command_log(stdout, stderr)
     
+    def all_missing_tasks(self):
+        self.schedule_missing_jobs()
+        self.retry_failed_backups()
+        self.send_unsent_backups()
+        
+    def schedule_missing_jobs(self):
+        """
+        Schedule missing future jobs (in case of failure in the past)
+        Recommended to run as a hourly periodic task
+        """
+        #get all active schedules
+        schedules = Schedule.objects.filter(active=True)
+        #get all future jobs
+        backup_jobs = Backup.objects.filter(time__gte=datetime.now())
+        #filter next run for all future jobs
+        b_schedule_times = (b.schedule.next_run() for b in backup_jobs)
+        #filter unscheduled jobs
+        unscheduled = (s for s in schedules if s.next_run() not in b_schedule_times)
+        #schedule all missing jobs
+        for u in unscheduled:
+            Backup.objects.create(schedule=u,
+                                  time=u.next_run())
+         
     def send_unsent_backups(self):
-        return [unsent.send() for unsent in Backup.objects.filter(Q(state=Backup.WAITING) |
-                                                                  Q(state=Backup.ERROR_SENDING))]
+        """
+        Send unsent backups to WebServer
+        Recommended to run as a hourly periodic task
+        """
+        for unsent in Backup.objects.filter(Q(state=Backup.WAITING) |
+                                            Q(state=Backup.ERROR_SENDING)):
+            unsent.send(WebServer.get())
 
-    def retry_backups(self):
+    def retry_failed_backups(self):
+        """
+        Retry backing up (locally) failed past attempts
+        Recommended to run as a hourly periodic task
+        """
         dt = functions.normalize_time(datetime.now())
         backups = Backup.objects.filter(Q(state=Backup.IDLE) |
                                         Q(state=Backup.ERROR_RUNNING),
                                         time__lte=dt)
         for b in backups:
             b.backup()
-            Backup.objects.create(schedule=b.schedule,
-                                  time=b.next_run(),
-                                  state=Backup.IDLE)
-            
-        #return [b.backup() for b in Backup.obkects.filter(Q(state=Backup.IDLE) |
-        #                                                  Q(state=Backup.ERROR_RUNNING))]
     
     
-    def schedules_to_run_now(self, schedules, now):
-        filtered = []
-        for schedule in schedules:
-            dt = now - schedule.last_run
-            seconds = dt.seconds + 86400*dt.days
-            if seconds >= schedule.delta:
-                schedule.update_last_run(now)
-                schedule.save()
-                filtered.append(schedule)
-        return filtered
-    
-    def get_schedules(self, dt):
-        schedules = Schedule.objects.filter(schedule_time__hour=dt.hour,
-                                            schedule_time__minute=dt.minute)
-        return [s for s in schedules if s.trigger(dt)]
         
     def trigger_backups(self):
+        """
+        This task will trigger backups to run if it's the scheduled date and time
+        """
         #current time
-        now = datetime.now()
-        now -= timedelta(seconds=now.second) + timedelta(microseconds=now.microsecond)
-        #gets schedules to run
-        schedules = self.get_schedules(now)
+        now = functions.normalize_time(datetime.now())
+        #get schedules to run now
+        schedules = self.get_schedules_to_run(now)
         if len(schedules) == 0: return
         
         for s in schedules:
-            backup, created = Backup.objects.get_or_create(schedule=s,
+            #get or create job
+            backup_job, created = Backup.objects.get_or_create(schedule=s,
                                                            time=now)
-            b.backup()
-            b.send(Webserver.get())
-                            
-        
-        #filter schedules to run
-        filtered_schedules = self.schedules_to_run_now(all_schedules, now)
-        #nothing to do
-        if len(filtered_schedules) == 0:
-            return
-
-        backups = (Backup.objects.get_or_create(schedule =s,
-                                                time__gt =s.last_backup,
-                                                time__lte=now)
-                   for s in filtered_schedules)
-        new_backups     = (b for b, created in backups if created)
-        #running_backups = (b for b, created in backups if not created)
-        
-        #for backup, created in backups:
-                                          
-        
-        for backup in new_backups:
-            backup.status = 'B'
-            backup.save_backup()
-              
-        
-        for schedule in filtered_schedules:
-            backup_job, created = Backup.objects.get_or_create(schedule=schedule,
-                                                               time__gt=schedule.last_backup,
-                                                               time__lte=now)
-            #already running
-            if not created:
+            #backup
+            backup_job.backup()
+            #send to WebServer
+            backup_job.send(WebServer.get())
             
-        
-        status = BackupStatus.objects.get_or_create(pk=1)[0]
-        #print status.executing
-        if status.executing:
-            status.save()
-            return
-        #print status.executing
-        status.executing = True
-
-        try:
-            status.save()
-        except:
-            return
-        
-        now = datetime.now()
-        now -= timedelta(microseconds=now.microsecond)
-        #configs = Config.objects.all()
-        #print configs
-        for config in configs:
-            delta = now - config.last_backup
-            if (delta.seconds + 86400 * delta.days) >= config.interval:
-                try:
-                    config.last_backup = now
-                    destination = Destination.objects.get(name=config.destination.name)
-                    log = Log.objects.create(
-                                              destination=destination,
-                                              date=now)
-                    self.local_backup(config, log)
-                    log.save()
-                    config.save()
-                    self.remote_backup(log)
-                    log.save()
-                    config.save()
-                except Exception:
-                    import traceback
-                    traceback.print_exc()
-                    status.executing = False
-                    status.save()
-        
-        status.executing = False
-        status.save()
-
-    #def check_backups(self):
-    #    transfers = TransferQueue.objects.all()
-    #    for t in transfers:
-    #        t.execute()
-    #    now = datetime.now()
-    #    now = -= timedelta(microseconds=now.microsecond)
-    #    ready_backups = [for c in configs if (now-config.last_backup)]
-        
-        return None
-        
-    def local_backup(self, config, log):
-        dt = str(config.last_backup).replace(' ','_').replace(':','-')
-        self.date = dt[:dt.rfind('.')]
-        
-        origin = Origin.objects.get(pk=1)
-        filename = origin.name + '_' + self.date
-        
-        installed_apps = settings.INSTALLED_APPS
-        apps = [a for a in installed_apps
-                if (not (a.startswith('django') or a.startswith('tbackup')))]
-        
-        #print 'client: apps'
-        #print apps       
-        #print 'FILENAME'
-        #print filename
-        
-        f = open(os.path.join(TBACKUP_DUMP_DIR,filename), "wb")
-        call_command('dumpdata', *apps, stdout=f)
-        f.close()
-                
-        newfilename = filename + '.db.gz'
-        
-        f_in  = open(os.path.join(TBACKUP_DUMP_DIR,filename), 'rb')
-        f_out = gzip.open(os.path.join(TBACKUP_DUMP_DIR,newfilename), 'wb',9)
-        
-        f_out.writelines(f_in)
-        f_out.close()
-        f_in.close()
-        os.remove(os.path.join(TBACKUP_DUMP_DIR,filename))
-        
-        log.filename = newfilename
-        log.local_status = True
-
-    
-    def remote_backup(self, log):
-
-        #from base64 import b64encode
-        sha1 = SHA.new()
-        #with open(os.path.join(TBACKUP_DUMP_DIR,log.filename), 'rb') as f:
-        #    raw_data = str()
-        #    encoded_string = str()
-        #    #9KB(9216) block:
-        #    #- multiple of 16 (2bytes) for sha1 to work in chunks
-        #    #- multiple of 24 (3bytes) for b64encode to work in chunks 
-        #    #- near 8KB for optimal sha1 speed
-        #    for data in iter(lambda: f.read(9216), b''):
-        #        raw_data += data
-        #        encoded_string += b64encode(data)
-        #        sha1.update(data)
-        #    sha1sum = sha1.hexdigest()
-        #     
-        #value = {
-        #           'destination' : 'Gruyere - LPS',
-        #           'file' : encoded_string,
-        #           'filename' : log.filename,
-        #           #'sha1sum': self.get_sha1sum(raw_data),
-        #           'sha1sum': sha1sum,
-        #           #'origin_pubkey' : origin_pubkey
-        #           'origin_name' : Origin.objects.get(pk=1).name,
-        #          }
-        #request_message = {
-        #                   'error' : False,
-        #                   'encrypted' : False,
-        #                   'key': False,
-        #                   'value' : value
-        #                 }
-        
-        
-        ws = WebServer.objects.get(pk=1)
-        #url = ws.url + 'tbackup_server/backup/'
-        #print url
-        #url = self._resolve_url('/a/creative/uploadcreative')
-        #url = 'http://127.0.0.1:8080/server/backup/'
-        f = open(os.path.join(TBACKUP_DUMP_DIR,log.filename), 'rb')
-        sha1.update(f.read())
-        f.seek(0)
-        files = {'file': (log.filename,f)}
-        #data = {'destination': log.destination.name,
-        #        'sha1sum' : sha1.hexdigest(),
-        #        'date' : str(log.date),
-        #        'origin_name' : Origin.objects.get(pk=1).name}
-        #req_msg = {'error' : 'false', 
-        #           'encrypted' : 'false', 
-        #           'key' : 'false',
-        #           'value' : json.dumps(data)}
-        response = requests.post(url, files=files, data=req_msg, verify=False)
-        
-        #print 'client:'
-        #print response.status_code
-        
-        if response.status_code != 200:
-            print 'response error'
-            print response.status_code
-            log.remote_status = False
-            return
-        
-        response_text = json.loads(response.text)
-        print response_text
-        #if response_text['error']:
-        #    print 'content error'
-        #    print response_text
-        #    log.remote_status = False
-        #    return
-        
-        log.remote_status = True
+    def get_schedules_to_run(self, t):
+        """
+        Fetches all active schedules to run now
+        """
+        schedules = Schedule.objects.filter(active=True,
+                                            schedule_time__hour=t.hour,
+                                            schedule_time__minute=t.minute)
+        return [s for s in schedules if s.trigger(t)]

@@ -4,7 +4,7 @@ import json
 import operator
 import requests
 
-from datetime    import datetime
+from datetime    import datetime, timedelta
 from Crypto.Hash import SHA
 from django.conf import settings
 from .constants  import (
@@ -76,3 +76,6 @@ def remove_key(d, key):
     r = dict(d)
     del r[key]
     return r
+  
+def normalize_time(dt):
+  return dt - timedelta(seconds=dt.second) - timedelta(microsecond=dt.microsecond)
