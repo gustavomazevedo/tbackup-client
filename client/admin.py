@@ -61,19 +61,19 @@ class OriginAdmin(admin.ModelAdmin):
 #
 #    def add_view(self, request, form_url='', extra_context=None):
 #        if request.method == GET:
-#            Destination.update(Origin.objects.get(pk=1).remote_id)
+#            Destination.update(WebServer.get(), Origin.objects.get(pk=1).remote_id)
 #        return super(ConfigAdmin, self).add_view(request, form_url, extra_context)
 #    
 #    def change_view(self, request,form_url=''):
 #        if request.method == GET:
-#            Destination.update(Origin.objects.get(pk=1).remote_id)
+#            Destination.update(WebServer.get(), Origin.objects.get(pk=1).remote_id)
 #        return super(ConfigAdmin, self).change_view(request,form_url)
 
 class WebServerAdmin(admin.ModelAdmin):
     readonly_fields = ('apikey',)
-    list_display = ( 'name'
-                   , 'apikey'
-                   , 'url'
+    list_display = ( 'name',
+                     'apikey',
+                     'url'
                    )
     def has_add_permission(self, request):
         return not WebServer.objects.filter(pk=1).exists()
@@ -84,11 +84,8 @@ class WebServerAdmin(admin.ModelAdmin):
     def has_change_permission(self, request, obj=None):
         return WebServer.objects.filter(pk=1).exists()
     
-admin.site.register(Destination)
+admin.site.register()
 admin.site.register(Origin, OriginAdmin)
 #admin.site.register(Configuration)
 admin.site.register(WebServer, WebServerAdmin)
-#admin.site.register(Plan)
-#admin.site.register(Config, ConfigAdmin)
-admin.site.register(Log)
-#admin.site.register(BackupStatus)
+admin.site.register([Destination, Backup, Schedule])

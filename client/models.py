@@ -1,12 +1,13 @@
 # -*- coding: utf-8 -*-
+import os
 
-from datetime                 import datetime, timedelta, time
+from datetime                 import datetime
 from requests.exceptions      import ConnectionError
 from dateutil                 import rrule
 from django.db                import models
-#from django.conf              import settings
 from django.utils.translation import ugettext_lazy as _
 from django.core.urlresolvers import reverse
+from django.conf.settings     import STATIC_URL
 from .conf.settings           import (
     DATETIME_FORMAT,
     GET,
@@ -17,52 +18,10 @@ from .conf.settings           import (
     WEBSERVER_API_VERSION
 )
 #from .constants               import GET, POST
-from .functions               import json_request
+from .functions               import json_request, normalize_time
 
 # Create your models here.
-#class Destination(NameableMixin):
-#    
-#    class Meta:
-#        abstract = True
-#    
-#
-#class Origin(NameableMixin):
-#    pass
-#    
-#    
-#class Server(models.Model):
-#    url = models.CharField(max_length=1024,
-#                           blank=True,
-#                           null=True)
-#    
-#    @staticmethod
-#    def get_server():
-#        return Server.objects.get(pk=1)
-#    
-#    def send_(self, ):
-#        pass
-#    
-#
-#class Backup(models.Model):
-#    pass
-#
-#
-#
-#    
-#class BackupQueue(LoggableMixin):
-#    origin = models
-#    
-#    @staticmethod
-#    def pop():
-#        pass
-#    
-#    @staticmethod
-#    def push(obj):
-#        pass
-#    
-#    @staticmethod
-#    def send(obj):
-   
+
 class RRule(models.Model):
     """
     Adapted from django-schedule project:
@@ -149,7 +108,63 @@ class RRule(models.Model):
         """Human readable string for Rule"""
         return self.name
 
-     
+class Schedule(models.Model):    
+    destination    = models.ForeignKey('Destination', null=True)
+    schedule_time  = models.DateTimeField(verbose_name=_("initial datetime"))
+    rule           = models.ForeignKey('RRule',
+                                       null=True,
+                                       blank=True,
+                                       verbose_name=_("rule"),
+                                       help_text=_("Selecione '----' para um evento não recorrente."))
+    
+    def __unicode__(self):
+        return u"%(destination_name)s %(rule)s" % {
+            'destination_name': self.destination.name,
+            'rule': self.rule
+        }
+    
+    def last_run(self):
+        return self.last_before(datetime.now())
+    
+    def next_run(self):
+        return self.next_after(datetime.now())
+    
+    def last_before(self, dt):
+        if self.rule is not None:
+            return self.get_rule().before(normalize_time(dt), True)
+        else:
+            if self.scheduled_time <= dt:
+                return self.scheduled_time
+            else:
+                return None
+            
+    def next_after(self, dt):
+        if self.rule is not None:
+            return self.get_rule().after(normalize_time(dt), False)
+        else:
+            if self.scheduled_time > dt:
+                return self.scheduled_time
+            else:
+                return None
+    
+    def trigger(self, dt):
+        last_before = self.last_before(dt)
+        if last_before is None:
+            return False
+        return normalize_time(dt) == last_before
+    
+    
+    def get_rule(self):
+        if self.rule is not None:
+            p = {
+                'dtstart' : self.schedule_time,
+                'byhour'  : self.schedule_time.hour,
+                'byminute': self.schedule_time.minute,
+            }
+            params = self.rule.get_params()
+            params.update(p)
+            frequency = 'rrule.%s' % self.rule.frequency
+            return rrule.rrule(eval(frequency), **params)
 
 class Destination(models.Model):
     """
@@ -166,9 +181,9 @@ class Destination(models.Model):
         return self.name
 
     @staticmethod
-    def update(origin_id):
+    def update(web_server, origin_id):
         try:
-            destinations = WebServer.get() \
+            destinations = web_server \
                            .destinations(origin_id) \
                            .get('destinations', None)
         except ConnectionError: 
@@ -210,13 +225,13 @@ class Origin(models.Model):
     def get():
         return Origin.objects.filter(pk=1) or None
 
-    @staticmethod
-    def register(name):
-        return WebServer.get().register(name)
-
-    @staticmethod
-    def check_availability(name):
-        return WebServer.get().check_availability(name)
+    #@staticmethod
+    #def register(web_server, name):
+    #    return web_server.register(name)
+    #
+    #@staticmethod
+    #def check_availability(web_server, name):
+    #    return web_server.check_availability(name)
 
 class WebServer(models.Model):
     name          = models.CharField(max_length=80,
@@ -226,7 +241,7 @@ class WebServer(models.Model):
     url           = models.CharField(max_length=1024)
     api_url       = models.CharField(max_length=1024)
     api_version   = models.CharField(max_length=20)
-    #active        = models.BooleanField(default=True)
+    active        = models.BooleanField(default=True)
     creation_date = models.DateTimeField(auto_now_add=True)
     
     def __unicode__(self):
@@ -239,7 +254,7 @@ class WebServer(models.Model):
     @staticmethod
     def get():
         #gets a list of available WebServers, new first
-        webservers = WebServer.objects.order_by('-creation_date')
+        webservers = WebServer.objects.filter(active=True).order_by('-creation_date')
         #In case there are no WebServers, create the default one
         if not webservers:
             data = {
@@ -257,25 +272,22 @@ class WebServer(models.Model):
                 #returns the first one which is online
                 if ws.is_up():
                     return ws
-            
         #if there are no online, available webservers
         return None
-            
-            
-    def force_info(self, data):
-        self.name = data['name']
-        self.url  = data['url']
-        self.api_url = data['api_url']
-        self.api_version = data['api_version']
-        self.apikey = data.get('apikey', self.apikey)
-        self.save()
-        return self
+
     
     @staticmethod
     def update_ws_info():
+        #retrieves WebServer info
         origin = Origin.get()
-        result = self.update_webserver_info(origin.id)
-        
+        try:
+            wso = WebServer.objects.get(pk=1)
+        except WebServer.DoesNotExist:
+            return
+        result = wso.remote_action(view_name=u"check_info",
+                                  method   = GET,
+                                  apikey   = wso.apikey,
+                                  origin_id= origin.id)
         webservers = result.get('webservers', None)
         if not webservers:
             return
@@ -289,7 +301,7 @@ class WebServer(models.Model):
                 apikey      = ws.get('apikey'     , None)
                 
                 #if all values are defined
-                if all([name, url, api_url, api_version, apikey, active]):
+                if all([name, url, api_url, api_version, apikey]):
                     try:
                        wso = WebServer.objects.get(name=name)
                     except WebServer.DoesNotExist:
@@ -302,7 +314,7 @@ class WebServer(models.Model):
                     }   
                     wso.update(**data)
                     wso.save()
-                            
+
     def is_up(self):
         """
         Checks if WebServer is online, by pinging one packet with 2 second tolerance
@@ -313,12 +325,12 @@ class WebServer(models.Model):
         #if server is up, response will be 0
         return response == 0
     
-    def update(self, url, api_):
+    def update(self, url, api_url, api_version, apikey, active):
         self.url = url
-        self.api_url = api_url,
-        self.api_version = api_version,
-        self.apikey=apikey,
-        self.active=active
+        self.api_url = api_url
+        self.api_version = api_version
+        self.apikey = apikey
+        self.active = active
     
     def check_availability(self, origin_name):
         #import ipdb; ipdb.set_trace()
@@ -353,19 +365,6 @@ class WebServer(models.Model):
                                   apikey   = self.apikey,
                                   origin_id= origin_id)
     
-    def update_webserver_info(self, origin_id):
-        data = {
-            'name'       : self.name,
-            'url'        : self.url,
-            'api_url'    : self.api_url,
-            'api_version': self.api_version,
-        }
-        return self.remote_action(view_name=u"check_info",
-                                  method   = POST,
-                                  data     = data,
-                                  apikey   = self.apikey,
-                                  origin_id= origin_id)
-    
     def remote_action(self, view_name, method=None, data=None,
                       apikey=None,
                       origin_id=None, files=None):
@@ -381,26 +380,6 @@ class WebServer(models.Model):
             apikey=apikey,
             files =files
         )
-    
-
-#class Plan(models.Model):
-#    destination = models.ForeignKey('Destination')
-#    interval    = models.IntegerField(verbose_name='periodicidade')
-#    last_backup = models.DateTimeField(auto_now=True,verbose_name=u'data do último backup')
-#    
-#    def __unicode__(self):
-#        return self.destination.name + unicode(self.interval)
-class LocalBackupQueue(models.Model):
-    
-    def queue(self, ):
-        pass
-    
-    def dequeue(self, ):
-        pass
-    
-    @staticmethod
-    def empty():
-        pass
     
 def get_path_name(instance, filename):
     return u'/'.join([instance.schedule.destination.name, filename])
@@ -460,7 +439,7 @@ class Backup(models.Model):
         if self.state in (self.FINISHED, self.REMOVED_LOCAL):
             return '<a href="%(restore)s">Restore<img src="%(image)s"/></a>' % {
                 'restore': reverse('url_restore', args=(self.id,)),
-                'image'  : '%simg/Refresh.png' % settings.STATIC_URL, 
+                'image'  : '%simg/Refresh.png' % STATIC_URL, 
             }
         return ''
     restore_link.short_description = 'Restaurar'
@@ -639,128 +618,3 @@ class Backup(models.Model):
         log.remote_status = True
         
         return None
-
-
-class Schedule(models.Model):
-    
-    #TIMEDELTA_CHOICES = (
-    #    (  86400, 'dia(s)'),
-    #    ( 604800, 'semana(s)'),
-    #    (1209600, 'quinzena(s)'),
-    #)
-    
-    destination    = models.ForeignKey('Destination', null=True)
-    schedule_time  = models.DateTimeField()
-    rule           = models.ForeignKey('RRule',
-                                       null=True,
-                                       blank=True,
-                                       verbose_name=_("rule"),
-                                       help_text=_("Selecione '----' para um evento não recorrente."))
-    
-    def __unicode__(self):
-        return u"%s a cada %s" % (self.destination.name, self.interval_str)
-    
-    
-    def rem_seconds(self, dt):
-        return dt - timedelta(seconds=dt.second) - timedelta(microseconds=dt.microsecond)
-    
-    def last_run(self):
-        return self.last_before(datetime.now())
-    
-    def next_run(self):
-        return self.next_after(datetime.now())
-    
-    def last_before(self, dt):
-        if self.rule is not None:
-            return self.get_rule().before(self.rem_seconds(dt), True)
-        else:
-            if self.scheduled_time <= dt:
-                return self.scheduled_time
-            else:
-                return None
-            
-    def next_after(self, dt):
-        if self.rule is not None:
-            return self.get_rule().after(self.rem_seconds(dt), False)
-        else:
-            if self.scheduled_time > dt:
-                return self.scheduled_time
-            else:
-                return None
-    
-    def trigger(self, dt):
-        last_before = self.last_before(dt)
-        if last_before is None:
-            return False
-        return self.rem_seconds(dt) == last_before
-    
-    
-    def get_rule(self):
-        if self.rule is not None:
-            p = {
-                'dtstart' : self.schedule_time,
-                'byhour': self.schedule_time.hour,
-                'byminute': self.schedule_time.minute,
-            }
-            params = self.rule.get_params()
-            params.update(p)
-            frequency = 'rrule.%s' % self.rule.frequency
-            return rrule.rrule(eval(frequency), **params)
-        
-    #@property
-    #def interval_tuple(self):
-    #    empty = (0, 0)
-    #    return next(((self.interval_hours / div, div)
-    #             for div,name in reversed(TIMEDELTA_CHOICES)
-    #             if self.interval_hours % div == 0)
-    #             , empty)
-    
-    #@property
-    #def interval_str(self):
-    #    empty = (0, u"")
-    #    return u"%i %s" % next(((self.interval_hours / div, name)
-    #                    for div,name in reversed(self.TIMEDELTA_CHOICES)
-    #                    if self.interval_hours % div == 0),
-    #                    empty)
-    #@property
-    #def next_scheduled(self):
-    #    return self.last_scheduled + timedelta(hours=self.interval_hours) \
-    #           if self.last_scheduled \
-    #           else self.schedule_time
-    #
-    #@property
-    #def whole_periods_off(self):
-    #    return (datetime.now()
-    #            - self.last_backup
-    #            + timedelta(hours=self.interval_hours)) / self.interval_hours
-    #    
-    #def save(self, *args, **kwargs):
-    #    if datetime.now() >= self.next_scheduled:
-    #        self.last_scheduled = self.next_scheduled 
-    #    return super(Schedule, self).save(*args, **kwargs)
-    
-
-#class BackupStatus(models.Model):
-#    executing = models.BooleanField(default=False)
-#    count = models.IntegerField(default=0)
-#    
-#    class Meta:
-#        verbose_name_plural = 'backup status'
-#        
-#    def save(self, *args, **kwargs):
-#        '''
-#        A cada 60 execuções (= 1 hora) que se passam com executing = True,
-#        reseta-o para False, para prevenir que uma queda do servidor prenda
-#        o status em True indefinidamente.
-#        '''
-#        if self.executing:
-#            self.count += 1
-#        else:
-#            self.count = 0
-#            
-#        if self.count >= 60:
-#            self.count = 0
-#            self.executing = False
-#        super(BackupStatus, self).save(*args, **kwargs)
-
-
