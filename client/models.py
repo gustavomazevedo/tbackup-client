@@ -4,10 +4,19 @@ from datetime                 import datetime, timedelta, time
 from requests.exceptions      import ConnectionError
 from dateutil                 import rrule
 from django.db                import models
-from django.conf              import settings
+#from django.conf              import settings
 from django.utils.translation import ugettext_lazy as _
 from django.core.urlresolvers import reverse
-from .constants               import GET, POST
+from .conf.settings           import (
+    DATETIME_FORMAT,
+    GET,
+    POST,
+    WEBSERVER_NAME,
+    WEBSERVER_URL,
+    WEBSERVER_API_URL,
+    WEBSERVER_API_VERSION
+)
+#from .constants               import GET, POST
 from .functions               import json_request
 
 # Create your models here.
@@ -210,33 +219,137 @@ class Origin(models.Model):
         return WebServer.get().check_availability(name)
 
 class WebServer(models.Model):
-    name        = models.CharField(max_length=80,
+    name          = models.CharField(max_length=80,
                                    verbose_name=u"nome")
-    apikey      = models.TextField(verbose_name=u"chave API",
+    apikey        = models.TextField(verbose_name=u"chave API",
                               editable=False)
-    url         = models.CharField(max_length=1024)
-    api_url     = models.CharField(max_length=1024)
-    api_version = models.CharField(max_length=20)
-
+    url           = models.CharField(max_length=1024)
+    api_url       = models.CharField(max_length=1024)
+    api_version   = models.CharField(max_length=20)
+    #active        = models.BooleanField(default=True)
+    creation_date = models.DateTimeField(auto_now_add=True)
+    
     def __unicode__(self):
         return self.name
 
     class Meta:
         verbose_name_plural = u"web server"
+        get_latest_by = 'creation_date'
 
     @staticmethod
     def get():
-        #import ipdb; ipdb.set_trace()
-        try:
-            return WebServer.objects.get(pk=1)
-        except WebServer.DoesNotExist:
-            return WebServer.objects.create(
-                name=settings.WEBSERVER_NAME,
-                url=settings.WEBSERVER_URL,
-                api_url=settings.WEBSERVER_API_URL,
-                api_version=settings.WEBSERVER_API_VERSION
-            )
-
+        #gets a list of available WebServers, new first
+        webservers = WebServer.objects.order_by('-creation_date')
+        #In case there are no WebServers, create the default one
+        if not webservers:
+            data = {
+                'name'        : WEBSERVER_NAME,
+                'url'         : WEBSERVER_URL,
+                'api_url'     : WEBSERVER_API_URL,
+                'api_version' : WEBSERVER_API_VERSION
+            }
+            ws = WebServer.objects.create(**data)
+            if ws.is_up():
+                return ws
+        #In case there are already
+        else: 
+            for ws in webservers:
+                #returns the first one which is online
+                if ws.is_up():
+                    return ws
+            
+        #if there are no online, available webservers
+        return None
+            
+            
+    def force_info(self, data):
+        self.name = data['name']
+        self.url  = data['url']
+        self.api_url = data['api_url']
+        self.api_version = data['api_version']
+        self.apikey = data.get('apikey', self.apikey)
+        self.save()
+        return self
+    
+    @staticmethod
+    def update_ws_info():
+        result = self.update_webserver_info(origin.id)
+        
+        webservers = result.get('webservers', None)
+        if not webservers:
+            return
+        for ws in webservers:
+            up_to_date = ws.get('up_to_date', None)
+            if not up_to_date:
+                name        = ws.get('name'       , None)
+                url         = ws.get('url'        , None)
+                api_url     = ws.get('api_url'    , None)
+                api_version = ws.get('api_version', None)
+                apikey      = ws.get('apikey'     , None)
+                
+                #if all values are defined
+                if all([name, url, api_url, api_version, apikey, active]):
+                    try:
+                       wso = WebServer.objects.get(name=name)
+                    except WebServer.DoesNotExist:
+                       wso = WebServer(name=name)
+                    data = {
+                        'url' : url,
+                        'api_url': api_url,
+                        'api_version': api_version,
+                        'apikey': apikey,
+                    }   
+                    wso.update(**data)
+                    wso.save()
+                            
+    def is_up(self):
+        """
+        Checks if WebServer is online, by pinging one packet with 2 second tolerance
+        If result is different from zero, consider it offline
+        """
+        hostname = self.url.replace('http://', '')
+        response = os.system('ping -c 1 -w2 %s > /dev/null 2>&1') % hostname
+        #if server is up, response will be 0
+        return response == 0
+    
+    def update(self, url, api_):
+        self.url = url
+        self.api_url = api_url,
+        self.api_version = api_version,
+        self.apikey=apikey,
+        self.active=active
+    
+    def update_info(self):
+        """
+        Tracks changes of configuration for WebServer location and updates
+        """
+        origin = Origin.get()
+        result = self.update_webserver_info(origin.id)
+        up_to_date = result.get('up_to_date', None)
+        if not up_to_date:
+            name        = result.get('name'       , None)
+            url         = result.get('url'        , None)
+            api_url     = result.get('api_url'    , None)
+            api_version = result.get('api_version', None)
+            apikey      = result.get('apikey'     , None)
+            
+            active      = result.get('active'     , None)
+            
+            #if all values are defined
+            if all([name, url, api_url, api_version, apikey]):
+                new = result.get('new', None)
+                #if it's new
+                if new:
+                    
+                else:
+                    
+                self.name        = name
+                self.url         = url
+                self.api_url     = api_url
+                self.api_version = api_version
+                self.apikey      = apikey
+                self.save()
+    
     def check_availability(self, origin_name):
         #import ipdb; ipdb.set_trace()
         return self.remote_action(view_name= u"origin_available",
@@ -265,6 +378,19 @@ class WebServer(models.Model):
     
     def restore(self, origin_id, data):
         return self.remote_action(view_name= u"restore",
+                                  method   = POST,
+                                  data     = data,
+                                  apikey   = self.apikey,
+                                  origin_id= origin_id)
+    
+    def update_webserver_info(self, origin_id):
+        data = {
+            'name'       : self.name,
+            'url'        : self.url,
+            'api_url'    : self.api_url,
+            'api_version': self.api_version,
+        }
+        return self.remote_action(view_name=u"check_info",
                                   method   = POST,
                                   data     = data,
                                   apikey   = self.apikey,
@@ -437,8 +563,9 @@ class Backup(models.Model):
         return None
 
     def local_backup(self):
-        dt = str(config.last_backup).replace(' ','_').replace(':','-')
-        self.date = dt[:dt.rfind('.')]
+        dt = datetime.now()
+        dt_str = datetime.strftime(dt, DATETIME_FORMAT)
+        date = dt_str[:dt_str.rfind('.')]
         
         origin = Origin.objects.get(pk=1)
         filename = origin.name + '_' + self.date
