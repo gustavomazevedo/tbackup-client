@@ -273,6 +273,7 @@ class WebServer(models.Model):
     
     @staticmethod
     def update_ws_info():
+        origin = Origin.get()
         result = self.update_webserver_info(origin.id)
         
         webservers = result.get('webservers', None)
@@ -318,37 +319,6 @@ class WebServer(models.Model):
         self.api_version = api_version,
         self.apikey=apikey,
         self.active=active
-    
-    def update_info(self):
-        """
-        Tracks changes of configuration for WebServer location and updates
-        """
-        origin = Origin.get()
-        result = self.update_webserver_info(origin.id)
-        up_to_date = result.get('up_to_date', None)
-        if not up_to_date:
-            name        = result.get('name'       , None)
-            url         = result.get('url'        , None)
-            api_url     = result.get('api_url'    , None)
-            api_version = result.get('api_version', None)
-            apikey      = result.get('apikey'     , None)
-            
-            active      = result.get('active'     , None)
-            
-            #if all values are defined
-            if all([name, url, api_url, api_version, apikey]):
-                new = result.get('new', None)
-                #if it's new
-                if new:
-                    
-                else:
-                    
-                self.name        = name
-                self.url         = url
-                self.api_url     = api_url
-                self.api_version = api_version
-                self.apikey      = apikey
-                self.save()
     
     def check_availability(self, origin_name):
         #import ipdb; ipdb.set_trace()
