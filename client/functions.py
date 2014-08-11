@@ -78,4 +78,4 @@ def remove_key(d, key):
     return r
   
 def normalize_time(dt):
-  return dt - timedelta(seconds=dt.second) - timedelta(microsecond=dt.microsecond)
+  return dt - timedelta(seconds=dt.second) - timedelta(microseconds=dt.microsecond)
