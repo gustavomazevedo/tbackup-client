@@ -16,7 +16,7 @@ from .conf.settings           import (
     WEBSERVER_URL,
     WEBSERVER_API_URL,
     WEBSERVER_API_VERSION,
-    STATIC_URL   
+    settings
 )
 #from .constants               import GET, POST
 from .functions               import json_request, normalize_time
@@ -440,7 +440,7 @@ class Backup(models.Model):
         if self.state in (self.FINISHED, self.REMOVED_LOCAL):
             return '<a href="%(restore)s">Restore<img src="%(image)s"/></a>' % {
                 'restore': reverse('url_restore', args=(self.id,)),
-                'image'  : '%simg/Refresh.png' % STATIC_URL, 
+                'image'  : '%simg/Refresh.png' % settings.STATIC_URL, 
             }
         return ''
     restore_link.short_description = 'Restaurar'
