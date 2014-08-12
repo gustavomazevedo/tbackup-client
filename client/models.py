@@ -116,13 +116,24 @@ class Schedule(models.Model):
                                        null=True,
                                        blank=True,
                                        verbose_name=_("rule"),
-                                       help_text=_("Selecione '----' para um evento não recorrente."))
+                                       help_text=_("Selecione '----' para um evento nao recorrente."))
+    active         = models.BooleanField(default=True, verbose_name=_("active"))
     
     def __unicode__(self):
+        if not self.rule:
+            return u"%(destination_name)s @ %(schedule_time)s" % {
+                'destination_name': self.destination.name,
+                'schedule_time': datetime.strftime(self.schedule_time, '%d/%m/%Y %H:%M')
+            }
+    
         return u"%(destination_name)s %(rule)s" % {
             'destination_name': self.destination.name,
             'rule': self.rule
         }
+    
+    def save(self, *args, **kwargs):
+        self.schedule_time = normalize_time(self.schedule_time)
+        return super(Schedule, self).save(*args, **kwargs)
     
     def last_run(self):
         return self.last_before(datetime.now())
@@ -256,8 +267,9 @@ class WebServer(models.Model):
     def get():
         #gets a list of available WebServers, new first
         webservers = WebServer.objects.filter(active=True).order_by('-creation_date')
+        #import ipdb; ipdb.set_trace()
         #In case there are no WebServers, create the default one
-        if not webservers:
+        if not webservers.exists():
             data = {
                 'name'        : WEBSERVER_NAME,
                 'url'         : WEBSERVER_URL,
@@ -321,8 +333,9 @@ class WebServer(models.Model):
         Checks if WebServer is online, by pinging one packet with 2 second tolerance
         If result is different from zero, consider it offline
         """
-        hostname = self.url.replace('http://', '')
-        response = os.system('ping -c 1 -w2 %s > /dev/null 2>&1') % hostname
+        #hostname = self.url.replace('http://', '').rpartition(':')[0]
+        hostname = '177.17.13.128'
+        response = os.system('ping -c 1 -W2 %s > /dev/null 2>&1' % hostname) 
         #if server is up, response will be 0
         return response == 0
     

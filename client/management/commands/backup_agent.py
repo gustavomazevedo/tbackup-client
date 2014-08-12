@@ -64,20 +64,12 @@ class Command(BaseCommand):
                     dest  ='all_missing_tasks',
                     help  ='Does -j, -r and then -s'
         ),
-#        make_option('--fill-data',
-#                    '-f',
-#                    action='store_true',
-#                    dest  ='fill_data',
-#                    help  ='fills_data'
-#        ),
-#        make_option('--update-config', '-u',
-#            dest='update_config',
-#            default=False,
-#            help='Updates configuration file'),
-#        make_option('--delete-old-backups', '-d',
-#            dest='delete_old_backups',
-#            default=False,
-#            help='Deletes local backups older than 14 days'),
+        make_option('--update-info',
+                    '-u',
+                    action='store_true',
+                    dest  ='update_info',
+                    help  ='Updates info about WebServer and Destination'
+        ),
     )
     
     def handle(self, *args, **options):
@@ -86,16 +78,12 @@ class Command(BaseCommand):
             return
         
         bh = BackupHandler()
-        if options.get('check_backups', False):
-            bh.check_backups()
+        if options.get('trigger_backups', False):
+            bh.trigger_backups()
         elif options.get('check_not_sent', False):
             bh.check_not_sent()
-#        elif options['update_config']:
-#            bh.update_config()
-#        elif options['delete_old_backups']:
-#            bh.delete_old_backups()
-#        elif options.get('fill_data', False):
-#            fill_data()
+        
+
         
         
 #def fill_data():
@@ -117,18 +105,6 @@ class BackupHandler():
 #            os.remove(os.path.join(TBACKUP_DUMP_DIR, backup.filename))
 #            backup.local_status = False
 #            backup.save()
-
-#    def update_config(self):
-#        try:
-#            server = WebServer.objects.get(pk=1)
-#        except WebServer.DoesNotExist:
-#            server = bkpagent.setup_server()
-#            
-#        cmd = ('rsync -e "ssh -p {0} -l {1}" -avz --delete-excluded {2} {3}'
-#               .format(server.port, server.user, server.configpath, CONFIG_DIR))
-#            
-#        stdout, stderr = self.process(cmd)
-#        self.command_log(stdout, stderr)
     
     def all_missing_tasks(self):
         self.schedule_missing_jobs()
