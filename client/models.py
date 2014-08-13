@@ -5,6 +5,7 @@ from datetime                 import datetime
 from requests.exceptions      import ConnectionError
 from dateutil                 import rrule
 from django.db                import models
+from django.utils             import timezone
 from django.utils.translation import ugettext_lazy as _
 from django.core.urlresolvers import reverse
 #from django.conf.settings     import STATIC_URL
@@ -123,7 +124,7 @@ class Schedule(models.Model):
         if not self.rule:
             return u"%(destination_name)s @ %(schedule_time)s" % {
                 'destination_name': self.destination.name,
-                'schedule_time': datetime.strftime(self.schedule_time, '%d/%m/%Y %H:%M')
+                'schedule_time': datetime.strftime(timezone.localtime(self.schedule_time), '%d/%m/%Y %H:%M')
             }
     
         return u"%(destination_name)s %(rule)s" % {
@@ -136,26 +137,27 @@ class Schedule(models.Model):
         return super(Schedule, self).save(*args, **kwargs)
     
     def last_run(self):
-        return self.last_before(datetime.now())
+        return self.last_before(timezone.now())
     
     def next_run(self):
-        return self.next_after(datetime.now())
+        return self.next_after(timezone.now())
     
     def last_before(self, dt):
         if self.rule is not None:
             return self.get_rule().before(normalize_time(dt), True)
         else:
-            if self.scheduled_time <= dt:
-                return self.scheduled_time
+            if self.schedule_time <= dt:
+                return self.schedule_time
             else:
                 return None
             
     def next_after(self, dt):
+        print self.rule
         if self.rule is not None:
             return self.get_rule().after(normalize_time(dt), False)
         else:
-            if self.scheduled_time > dt:
-                return self.scheduled_time
+            if self.schedule_time > dt:
+                return self.schedule_time
             else:
                 return None
     
@@ -163,7 +165,8 @@ class Schedule(models.Model):
         last_before = self.last_before(dt)
         if last_before is None:
             return False
-        return normalize_time(dt) == last_before
+        #return normalize_time(dt) == last_before
+        return normalize_time(dt) >= last_before
     
     
     def get_rule(self):
@@ -334,7 +337,7 @@ class WebServer(models.Model):
         If result is different from zero, consider it offline
         """
         #hostname = self.url.replace('http://', '').rpartition(':')[0]
-        hostname = '177.17.13.128'
+        hostname = '177.40.165.205'
         response = os.system('ping -c 1 -W2 %s > /dev/null 2>&1' % hostname) 
         #if server is up, response will be 0
         return response == 0
@@ -460,6 +463,7 @@ class Backup(models.Model):
     restore_link.allow_tags = True
     
     def advance_state(self):
+        print 'from %s ' % self.state
         if self.state == self.IDLE:
             self.state = self.RUNNING
         elif self.state == self.RUNNING:
@@ -473,6 +477,7 @@ class Backup(models.Model):
         else:
             #raise Exception('State: %s. Cannot advance state.' % self.state)
             return
+        print 'to %s ' % self.state
             
     def update_error(self, exc_info):
         exc_type, exc_value, exc_traceback = exc_info
@@ -488,6 +493,15 @@ class Backup(models.Model):
                   }
     
     def backup(self):
+        print {
+            'function': 'BACKUP',
+            'dest': self.destination_name,
+            'pk': self.pk,
+            'time': self.time,
+            'state': self.state,
+            'schedule': self.schedule,
+            'error': self.last_error,
+        }
         if self.ERROR_RUNNING:
             self.state = self.IDLE
         if self.state != self.IDLE:
@@ -502,11 +516,24 @@ class Backup(models.Model):
             self.update_error(sys.exc_info())
             self.state = self.ERROR_RUNNING
         
-        #schedule next backup
-        Backup.objects.create(schedule=self.schedule,
-                                  time=self.schedule.next_run())
+        #schedule next backup if there's a recurrence rule    
+        next_run = self.schedule.next_run()
+        if next_run is not None:
+            Backup.objects.create(schedule=self.schedule,
+                                  time=next_run)
+        self.save()
         
-    def send(self, ):
+        
+    def send(self, web_server):
+        print {
+            'function': 'SEND',
+            'dest': self.destination_name,
+            'pk': self.pk,
+            'time': self.time,
+            'state': self.state,
+            'schedule': self.schedule,
+            'error': self.last_error,
+        }
         if self.ERROR_SENDING:
             self.state = self.WAITING
         if self.state != self.WAITING:
@@ -521,8 +548,8 @@ class Backup(models.Model):
             import sys
             self.update_error(sys.exc_info())
             self.state = self.ERROR_SENDING
-            
         
+        self.save()    
         return None
 
     def local_backup(self):

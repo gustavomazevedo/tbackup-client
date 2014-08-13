@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
 
 from django.test import TestCase
-from django.test import Client
+#from django.test import Client
+from django.utils import timezone
+
 from .models import (
     Origin,
     Destination,
@@ -10,13 +12,13 @@ from .models import (
     RRule,
 )
 
-from datetime import datetime, timedelta
+from datetime import timedelta
 #rom django.utils.timezone import utc
-from django.conf import settings
+#from django.conf import settings
 
 #from django.core.files import File
 
-import os
+#import os
 
 PATH='/Users/gustavo/'
 #PATH='/home/gustavo.azevedo/Projects/'
@@ -30,7 +32,7 @@ class RuleCase(TestCase):
                                 frequency=RRule.DAILY)
         self.daily_rule.save()
         
-        self.now = datetime.now()
+        self.now = timezone.now()
         self.now -= timedelta(seconds=self.now.second) + timedelta(microseconds=self.now.microsecond)
         params = {
             'schedule_time': self.now + timedelta(hours=1),

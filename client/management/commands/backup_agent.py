@@ -9,6 +9,7 @@ from datetime    import datetime, timedelta
 from Crypto.Hash import SHA
 
 from django.conf                 import settings
+from django.utils                import timezone
 from django.core.management      import call_command
 from django.core.management.base import BaseCommand, make_option
 from django.db.models            import F, Q
@@ -30,6 +31,8 @@ from client import functions
 #DUMP_DIR = os.path.normpath(os.path.join(PROJECT_DIR, 'tbackup_client/dumps/'))
 
 TBACKUP_DUMP_DIR = settings.TBACKUP_DUMP_DIR
+
+
 
 class Command(BaseCommand):
     option_list = BaseCommand.option_list + (
@@ -72,28 +75,22 @@ class Command(BaseCommand):
         ),
     )
     
+    def trydecorator(self, func, *args):
+        
+            func(*args)
+            
     def handle(self, *args, **options):
-        #Don't accept commands if origin is not registered
-        if not Origin.objects.filter(pk=1).exists():
-            return
+        #try: 
+            #Don't accept commands if origin is not registered
+            if not Origin.objects.filter(pk=1).exists():
+                return
         
-        bh = BackupHandler()
-        if options.get('trigger_backups', False):
-            bh.trigger_backups()
-        elif options.get('check_not_sent', False):
-            bh.check_not_sent()
+            if options.get('trigger_backups', False):
+                self.trigger_backups()
+                
+        #except Exception, e:
+        #    self.stderr.write('%s: %s' % (e.__class__.__name__, e))
         
-
-        
-        
-#def fill_data():
-#    from dummy_app.models import DummyData
-#    for i in xrange(5):
-#        DummyData.objects.create( name='name %i' %i,
-#                                  type='type %i' %i )
-    
-class BackupHandler():
-
 #    def delete_old_backups(self):
 #        fourteen_days_ago = datetime.now() - datetime.timedelta(days=14)
 #        backuphistory = Log.objects.filter(
@@ -119,7 +116,7 @@ class BackupHandler():
         #get all active schedules
         schedules = Schedule.objects.filter(active=True)
         #get all future jobs
-        backup_jobs = Backup.objects.filter(time__gte=datetime.now())
+        backup_jobs = Backup.objects.filter(time__gte=timezone.now())
         #filter next run for all future jobs
         b_schedule_times = (b.schedule.next_run() for b in backup_jobs)
         #filter unscheduled jobs
@@ -143,7 +140,7 @@ class BackupHandler():
         Retry backing up (locally) failed past attempts
         Recommended to run as a hourly periodic task
         """
-        dt = functions.normalize_time(datetime.now())
+        dt = functions.normalize_time(timezone.now())
         backups = Backup.objects.filter(Q(state=Backup.IDLE) |
                                         Q(state=Backup.ERROR_RUNNING),
                                         time__lte=dt)
@@ -157,15 +154,20 @@ class BackupHandler():
         This task will trigger backups to run if it's the scheduled date and time
         """
         #current time
-        now = functions.normalize_time(datetime.now())
+        now = functions.normalize_time(timezone.now())
+        self.stdout.write(str(timezone.now()))
+        self.stdout.write(str(datetime.now()))
+        self.stdout.write(str(now))
         #get schedules to run now
         schedules = self.get_schedules_to_run(now)
+        self.stdout.write(str(len(schedules)))
         if len(schedules) == 0: return
         
         for s in schedules:
             #get or create job
             backup_job, created = Backup.objects.get_or_create(schedule=s,
                                                            time=now)
+            self.stdout.write(str(created))
             #backup
             backup_job.backup()
             #send to WebServer
@@ -175,7 +177,16 @@ class BackupHandler():
         """
         Fetches all active schedules to run now
         """
+        #schedules = Schedule.objects.filter(active=True,
+        #                                    schedule_time__hour=t.hour,
+        #                                    schedule_time__minute=t.minute)
+        #return [s for s in schedules if s.trigger(t)]
         schedules = Schedule.objects.filter(active=True,
-                                            schedule_time__hour=t.hour,
-                                            schedule_time__minute=t.minute)
+                                            schedule_time__hour=t.hour)
         return [s for s in schedules if s.trigger(t)]
+
+#def fill_data():
+#    from dummy_app.models import DummyData
+#    for i in xrange(5):
+#        DummyData.objects.create( name='name %i' %i,
+#                                  type='type %i' %i )

@@ -5,10 +5,11 @@ import json
 import operator
 import requests
 
-from datetime    import datetime, timedelta
-from Crypto.Hash import SHA
-from django.conf import settings
-from .constants  import (
+from datetime     import timedelta
+from Crypto.Hash  import SHA
+from django.conf  import settings
+from django.utils import timezone
+from .constants   import (
   #GET,
   POST,
 )
@@ -64,7 +65,7 @@ def sign(data, apikey=None):
 def get_signed_data(data, key):
     return_data = dict(data) if data else {}
     
-    return_data[u"timestamp"] = u"%s" % json.dumps(unicode(datetime.now()))
+    return_data[u"timestamp"] = u"%s" % json.dumps(unicode(timezone.now()))
     return_data[u"signature"] = u"%s" % sign(return_data, key)
     
     return return_data
