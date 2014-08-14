@@ -4,6 +4,7 @@ import os
 import json
 import gzip
 import requests
+import pytz
 
 from datetime    import datetime, timedelta
 from Crypto.Hash import SHA
@@ -155,9 +156,8 @@ class Command(BaseCommand):
         """
         #current time
         now = functions.normalize_time(timezone.now())
-        self.stdout.write(str(timezone.now()))
-        self.stdout.write(str(datetime.now()))
-        self.stdout.write(str(now))
+        self.stdout.write(str(timezone.make_naive(timezone.now(), pytz.timezone(settings.TIME_ZONE))))
+        self.stdout.write(str(timezone.make_naive(now, pytz.timezone(settings.TIME_ZONE))))
         #get schedules to run now
         schedules = self.get_schedules_to_run(now)
         self.stdout.write(str(len(schedules)))
@@ -183,6 +183,12 @@ class Command(BaseCommand):
         #return [s for s in schedules if s.trigger(t)]
         schedules = Schedule.objects.filter(active=True,
                                             schedule_time__hour=t.hour)
+        print schedules
+        schedules = Schedule.objects.all()
+        for s in schedules:
+            print t, s.schedule_time
+            print t.hour, s.schedule_time.hour
+            print t.minute, s.schedule_time.minute
         return [s for s in schedules if s.trigger(t)]
 
 #def fill_data():
