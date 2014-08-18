@@ -121,15 +121,12 @@ class Schedule(models.Model):
     active         = models.BooleanField(default=True, verbose_name=_("active"))
     
     def __unicode__(self):
-        if not self.rule:
-            return u"%(destination_name)s @ %(schedule_time)s" % {
-                'destination_name': self.destination.name,
-                'schedule_time': datetime.strftime(timezone.localtime(self.schedule_time), '%d/%m/%Y %H:%M')
-            }
-    
-        return u"%(destination_name)s %(rule)s" % {
+        return u"%(destination_name)s%(rule)s@ %(schedule_time)s" % {
             'destination_name': self.destination.name,
-            'rule': self.rule
+            'rule': u' (%s) ' % self.rule if self.rule else ' ',
+            'schedule_time':
+                datetime.strftime(timezone.localtime(self.schedule_time),
+                    '%H:%M' if self.rule else '%d/%m/%Y %H:%M')
         }
     
     def save(self, *args, **kwargs):
@@ -337,7 +334,7 @@ class WebServer(models.Model):
         If result is different from zero, consider it offline
         """
         #hostname = self.url.replace('http://', '').rpartition(':')[0]
-        hostname = '177.40.165.205'
+        hostname = '177.205.173.4'
         response = os.system('ping -c 1 -W2 %s > /dev/null 2>&1' % hostname) 
         #if server is up, response will be 0
         return response == 0
@@ -509,7 +506,7 @@ class Backup(models.Model):
             return
         self.advance_state()
         try:
-            pass
+            self.local_backup()
             self.advance_state()
         except:
             import sys
@@ -542,7 +539,7 @@ class Backup(models.Model):
             
         self.advance_state()
         try:
-            pass
+            self.remote_backup()
             self.advance_state()
         except:
             import sys
@@ -553,14 +550,25 @@ class Backup(models.Model):
         return None
 
     def local_backup(self):
-        dt = datetime.now()
+        dt = timezone.now()
         dt_str = datetime.strftime(dt, DATETIME_FORMAT)
         date = dt_str[:dt_str.rfind('.')]
         
         origin = Origin.objects.get(pk=1)
         filename = origin.name + '_' + self.date
         
+        app_filters = {
+            'django': self.schedule.backup_system,
+            'client': self.schedule.backup_tbackup_config
+        }
+        
         installed_apps = settings.INSTALLED_APPS
+        appsgen = (a for a in installed_apps)
+        for packname, will_backup in app_filters:
+            if not will_backup:
+                appsgen = (a for a in appsgen if not a.startswith(packname))
+        apps = list(appsgen)
+        
         apps = [a for a in installed_apps
                 if (not (a.startswith('django') or a.startswith('tbackup')))]
         

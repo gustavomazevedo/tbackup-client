@@ -15,6 +15,7 @@ from .models import (
     Backup,
   # Plan
    Schedule,
+   RRule
    #Log,
   # BackupStatus,
   )
@@ -86,4 +87,4 @@ class WebServerAdmin(admin.ModelAdmin):
 admin.site.register(Origin, OriginAdmin)
 admin.site.register(Schedule, ScheduleAdmin)
 admin.site.register(WebServer, WebServerAdmin)
-admin.site.register([Destination, Backup])
+admin.site.register([Destination, Backup, RRule])
