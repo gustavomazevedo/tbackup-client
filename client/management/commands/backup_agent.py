@@ -16,23 +16,14 @@ from django.core.management.base import BaseCommand, make_option
 from django.db.models            import F, Q
 from client.models               import (
                                           Origin,
-                                          WebServer, 
-                                          #Log, 
-                                          #Config, 
-                                          #Destination, 
-                                          #BackupStatus,
+                                          WebServer,
                                           Backup,
                                           Schedule,
                                         )
 from client import functions
 
-#PROJECT_DIR = os.path.normpath(os.path.join(
-#                    os.path.dirname(os.path.realpath(__file__)), '../../../'))
-
-#DUMP_DIR = os.path.normpath(os.path.join(PROJECT_DIR, 'tbackup_client/dumps/'))
 
 TBACKUP_DUMP_DIR = settings.TBACKUP_DUMP_DIR
-
 
 
 class Command(BaseCommand):
@@ -75,11 +66,7 @@ class Command(BaseCommand):
                     help  ='Updates info about WebServer and Destination'
         ),
     )
-    
-    def trydecorator(self, func, *args):
-        
-            func(*args)
-            
+                
     def handle(self, *args, **options):
         #try: 
             #Don't accept commands if origin is not registered

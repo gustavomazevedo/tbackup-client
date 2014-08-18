@@ -569,8 +569,9 @@ class Backup(models.Model):
                 appsgen = (a for a in appsgen if not a.startswith(packname))
         apps = list(appsgen)
         
-        apps = [a for a in installed_apps
-                if (not (a.startswith('django') or a.startswith('tbackup')))]
+        #apps = [a for a in installed_apps
+        #        if (not (a.startswith('django') or a.startswith('tbackup')))]
+        
         
         #print 'client: apps'
         #print apps       

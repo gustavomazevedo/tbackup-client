@@ -5,10 +5,10 @@ from django.test import TestCase
 from django.utils import timezone
 
 from .models import (
-    Origin,
-    Destination,
+#    Origin,
+#    Destination,
     Schedule,
-    WebServer,
+#    WebServer,
     RRule,
 )
 
@@ -49,6 +49,14 @@ class RuleCase(TestCase):
         self.assertEqual(self.schedule.schedule_time, self.now + timedelta(hours=1))
     
     def test_schedule_filter_by_time(self):
+        print self.schedule.schedule_time
+        ss = Schedule.objects.all()
+        for s in ss:
+            print s.schedule_time
+            print (s.schedule_time.hour == self.schedule.schedule_time.hour and
+                  s.schedule_time.minute == self.schedule.schedule_time.minute)
+            print s.schedule_time == self.schedule.schedule_time      
+
         schedules = Schedule.objects.filter(schedule_time__hour=self.schedule.schedule_time.hour,
                                            schedule_time__minute=self.schedule.schedule_time.minute)
         self.assertIn(self.schedule, schedules)
