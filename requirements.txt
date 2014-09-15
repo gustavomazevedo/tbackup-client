@@ -4,10 +4,8 @@ South==0.8.4
 Unidecode==0.04.14
 django-extensions==1.2.5
 mock==1.0.1
-paramiko==1.12.0
 python-dateutil==2.2
 pytz==2014.2
-readline==6.2.4.1
 requests==2.3.0
 six==1.4.1
 sqlparse==0.1.10
