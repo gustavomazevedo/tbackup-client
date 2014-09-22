@@ -25,6 +25,7 @@ PATH='/Users/gustavo/'
 
 # Create your tests here.
 class RuleCase(TestCase):
+    fixtures = ['rules.json']
     
     def setUp(self):
         self.daily_rule = RRule(name=u'diário',
@@ -42,6 +43,7 @@ class RuleCase(TestCase):
         self.schedule.save()
         
     def test_rule_ok(self):
+        #print [r for r in RRule.objects.all()]
         rule = RRule.objects.get(name=u'diário')
         self.assertEqual(rule, self.daily_rule)
         
