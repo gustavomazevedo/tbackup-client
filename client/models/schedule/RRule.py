@@ -1,4 +1,4 @@
-
+# -*- coding: utf-8 -*-
 
 #from dateutil import rrule
 from django.db import models
