@@ -62,9 +62,10 @@ class RRule(models.Model):
     params = models.TextField(_("params"), null=True, blank=True)
 
     class Meta:
+        app_label = 'client'
         verbose_name = _('rule')
         verbose_name_plural = _('rules')
-
+    
     def get_params(self):
         """
         >>> rule = RRule(params = "count:1;bysecond:1;byminute:1,2,4,5")

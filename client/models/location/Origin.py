@@ -11,6 +11,7 @@ class Origin(models.Model):
     remote_id = models.BigIntegerField(editable=False)
 
     class Meta:
+        app_label = 'client'
         verbose_name = u"origem"
         verbose_name_plural = u"origem"
 

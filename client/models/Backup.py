@@ -39,7 +39,7 @@ class Backup(models.Model):
     )
     TIMEFORMAT = '%Y%m%d%H%M'
     name      = models.CharField(max_length=256)
-    schedule  = models.ForeignKey('client.Schedule')
+    schedule  = models.ForeignKey('Schedule')
     time      = models.DateTimeField()
     local_file= models.FileField(upload_to=get_path_name,
                                  null=True)
@@ -53,6 +53,9 @@ class Backup(models.Model):
                              default=IDLE)
     last_error = models.TextField(null=True)
     
+    class Meta:
+        app_label = 'client'
+        
     def __unicode__(self, ):
         return self.name
     

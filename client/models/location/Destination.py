@@ -12,6 +12,7 @@ class Destination(models.Model):
                             primary_key=True)
 
     class Meta:
+        app_label = 'client'
         verbose_name = u"destino"
         ordering = [u"name"]
 

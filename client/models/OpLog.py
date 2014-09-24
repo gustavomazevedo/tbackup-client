@@ -4,4 +4,6 @@ from django.db import models
 
 
 class OpLog(models.Model):
-    pass
+    class Meta:
+        app_label = 'client'
+    

@@ -27,6 +27,7 @@ class WebServer(models.Model):
         return self.name
 
     class Meta:
+        app_label = 'client'
         verbose_name_plural = u"web server"
         get_latest_by = 'creation_date'
 
