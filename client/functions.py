@@ -9,10 +9,7 @@ from datetime     import timedelta
 from hashlib      import sha1 as SHA
 from django.conf  import settings
 from django.utils import timezone
-from client.conf.settings import (
-  #GET,
-  POST,
-)
+from client.conf.settings import POST
 
 def json_request(url, method=None, data=None, apikey=None, files=None):
     signed_data = get_signed_data(data, apikey)

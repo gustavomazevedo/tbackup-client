@@ -225,35 +225,7 @@ class Backup(models.Model):
     def remote_backup(self, log):
         #from base64 import b64encode
         sha1 = SHA.new()
-        #with open(os.path.join(TBACKUP_DUMP_DIR,log.filename), 'rb') as f:
-        #    raw_data = str()
-        #    encoded_string = str()
-        #    #9KB(9216) block:
-        #    #- multiple of 16 (2bytes) for sha1 to work in chunks
-        #    #- multiple of 24 (3bytes) for b64encode to work in chunks 
-        #    #- near 8KB for optimal sha1 speed
-        #    for data in iter(lambda: f.read(9216), b''):
-        #        raw_data += data
-        #        encoded_string += b64encode(data)
-        #        sha1.update(data)
-        #    sha1sum = sha1.hexdigest()
-        #     
-        #value = {
-        #           'destination' : 'Gruyere - LPS',
-        #           'file' : encoded_string,
-        #           'filename' : log.filename,
-        #           #'sha1sum': self.get_sha1sum(raw_data),
-        #           'sha1sum': sha1sum,
-        #           #'origin_pubkey' : origin_pubkey
-        #           'origin_name' : Origin.objects.get(pk=1).name,
-        #          }
-        #request_message = {
-        #                   'error' : False,
-        #                   'encrypted' : False,
-        #                   'key': False,
-        #                   'value' : value
-        #                 }
-        
+
         
         ws = WebServer.objects.get(pk=1)
         #url = ws.url + 'tbackup_server/backup/'
@@ -285,12 +257,7 @@ class Backup(models.Model):
         
         response_text = json.loads(response.text)
         print response_text
-        #if response_text['error']:
-        #    print 'content error'
-        #    print response_text
-        #    log.remote_status = False
-        #    return
-        
+
         log.remote_status = True
         
         return None
