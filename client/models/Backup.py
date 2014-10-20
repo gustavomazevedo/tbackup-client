@@ -13,6 +13,7 @@ def get_path_name(instance, filename):
     return u'/'.join([instance.schedule.destination.name, filename])
 
 class Backup(models.Model):
+    #enum for states
     IDLE          = 'IDLE'
     RUNNING       = 'RUNNING'
     ERROR_RUNNING = 'ERROR_RUNNING'
@@ -21,6 +22,7 @@ class Backup(models.Model):
     ERROR_SENDING = 'ERROR_SENDING'
     FINISHED      = 'FINISHED'
     REMOVED_LOCAL = 'REMOVED_LOCAL'
+    #choices for state column
     STATE_CHOICES = (
         (IDLE         , u'Não Iniciado.'),
         (RUNNING      , u'Executando backup local.'),
@@ -31,13 +33,18 @@ class Backup(models.Model):
         (FINISHED     , u'Backup finalizado.'),
         (REMOVED_LOCAL, u'Cópia local removida. Restauro apenas online.'),
     )
+    #enum for kind
     SCHEDULED     = 'SCHEDULED'
     EXTRAORDINARY = 'EXTRAORDINARY'
+    #choices for kind column
     KIND_CHOICES = (
         (SCHEDULED    , 'Agendado'),
         (EXTRAORDINARY, 'Especial'),
     )
+    
     TIMEFORMAT = '%Y%m%d%H%M'
+    
+    #model fields
     name      = models.CharField(max_length=256)
     schedule  = models.ForeignKey('Schedule')
     time      = models.DateTimeField()
@@ -53,7 +60,9 @@ class Backup(models.Model):
                              default=IDLE)
     last_error = models.TextField(null=True)
     
+    #meta config
     class Meta:
+        #app_label required when scathering models in multiple files
         app_label = 'client'
         
     def __unicode__(self, ):

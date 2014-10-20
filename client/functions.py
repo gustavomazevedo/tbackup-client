@@ -6,10 +6,10 @@ import operator
 import requests
 
 from datetime     import timedelta
-from Crypto.Hash  import SHA
+from hashlib      import sha1 as SHA
 from django.conf  import settings
 from django.utils import timezone
-from .constants   import (
+from client.conf.settings import (
   #GET,
   POST,
 )
