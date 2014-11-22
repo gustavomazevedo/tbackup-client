@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import os
+import socket
 
 from django.db import models
 
@@ -102,11 +103,20 @@ class WebServer(models.Model):
         Checks if WebServer is online, by pinging one packet with 2 second tolerance
         If result is different from zero, consider it offline
         """
-        #hostname = self.url.replace('http://', '').rpartition(':')[0]
-        hostname = '177.205.173.4'
-        response = os.system('ping -c 1 -W2 %s > /dev/null 2>&1' % hostname) 
+        hostname = self.url.replace('http://', '').rpartition(':')[0]
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        answer = False
+        try:
+            s.connect((hostname,7000))
+            #s.connect((hostname,80))
+            answer = True
+        except:
+            pass
+        s.close()
+        return answer
+        #response = os.system('ping -c 1 -W2 %s > /dev/null 2>&1' % hostname) 
         #if server is up, response will be 0
-        return response == 0
+        #return response == 0
     
     def update(self, url, api_url, api_version, apikey, active):
         self.url = url

@@ -3,6 +3,7 @@ Fabric==1.8.0
 South==0.8.4
 Unidecode==0.04.14
 django-extensions==1.2.5
+django-tables2==0.15.0
 mock==1.0.1
 python-dateutil==2.2
 pytz==2014.2

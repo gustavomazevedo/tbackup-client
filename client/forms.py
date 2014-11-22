@@ -2,6 +2,7 @@
 
 from django.forms import widgets
 from django import forms
+from django.utils.translation import ugettext_lazy as _
 
 from client.models import (Origin, WebServer)
 
@@ -70,13 +71,11 @@ class OriginForm(forms.ModelForm):
     
         
 class RegisterForm(forms.ModelForm):
-    name = forms.RegexField(
-	    max_length=80,
-      label='Nome',
-	    regex=r'^[A-Za-z][A-Za-z0-9_.]*',
-	    error_message=u'Somente caracteres alfanuméricos e símbolos "_" e ".". \n'
-                          u'Primeiro caractere é obrigatoriamente uma letra.'
-		)
+    name = forms.RegexField(max_length=80,
+			    label='Nome',
+			    regex=r'^[A-Za-z][A-Za-z0-9_.]*',
+			    error_message=u'Somente caracteres alfanuméricos e símbolos "_" e ".". \n'
+					  u'Primeiro caractere é obrigatoriamente uma letra.')
 		
     def __init__(self, *args, **kwargs):
         super(RegisterForm, self).__init__(*args, **kwargs)
@@ -100,8 +99,18 @@ class LogForm(forms.ModelForm):
         self.fields['local_status'].widget.attrs['disabled'] = True
         self.fields['remote_status'].widget.attrs['disabled'] = True
         
-class RestoreForm(forms.ModelForm):
+class ConfirmRestoreForm(forms.Form):
+    password1 = forms.PasswordInput()
+    password2 = forms.PasswordInput()
     
     def __init__(self, *args, **kwargs):
-        super(RestoreForm, self).__init__(*args, **kwargs)
-        
+        super(ConfirmRestoreForm, self).__init__(*args, **kwargs)
+    
+    def clean(self):
+	password1 = self.cleaned_data.get('password1')
+	password2 = self.cleaned_data.get('password2')
+	
+	if password1 and password1 != password2:
+	    raise forms.ValidationError(_("Passwords don't match"))
+	
+	return self.cleaned_data

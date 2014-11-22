@@ -44,7 +44,9 @@ INSTALLED_APPS = (
     'django.contrib.staticfiles',
     'django_extensions',
     'south',
+    'django_tables2',
     'client',
+    
 )
 
 MIDDLEWARE_CLASSES = (
@@ -55,6 +57,13 @@ MIDDLEWARE_CLASSES = (
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 )
+
+TEMPLATE_CONTEXT_PROCESSORS = (
+    'django.contrib.auth.context_processors.auth',
+    'django.core.context_processors.request',
+    'django.core.context_processors.static',
+)
+    
 
 ROOT_URLCONF = 'tbackup_client.urls'
 
