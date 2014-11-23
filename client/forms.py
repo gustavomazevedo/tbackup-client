@@ -10,10 +10,11 @@ from .constants import TIMEDELTA_CHOICES
 
 class OriginForm(forms.ModelForm):
     model = Origin
+    password = forms.PasswordInput()
     
     def clean(self):
         cleaned_data = super(OriginForm, self).clean()
-        data = WebServer.get().check_availability(cleaned_data.get(u"name", None))
+        data = WebServer.instance().check_availability(cleaned_data.get(u"name", None))
         if data:
             if not data.get(u"availability"):
                 raise forms.ValidationError(u"Nome já está sendo utilizado. Por favor, escolha um novo nome ou contacte os administradores.")
@@ -80,11 +81,11 @@ class RegisterForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super(RegisterForm, self).__init__(*args, **kwargs)
         instance = getattr(self, 'instance', None)
-        if instance and instance.id:
+        if instance and instance().id:
             self.fields['name'].widget.attrs['disabled'] = True
     
         def clean_name(self):
-            return self.instance.name
+            return self.instance().name
     
     class Meta:
         exclude = ('pvtkey','pubkey',)

@@ -32,6 +32,15 @@ def destinations(request):
 def origins(request):
     return render_table(request, OriginTable)
 
+def rrules(request):
+    return render_table(request, RRuleTable)
+
+def schedules(request):
+    return render_table(request, ScheduleTable)
+
+def webservers(request):
+    return render_table(request, WebServerTable)
+
 #@staff_member_required
 class ConfirmRestoreView(FormView):
     form_class = ConfirmRestoreForm

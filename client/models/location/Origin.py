@@ -5,9 +5,7 @@ from django.db import models
 class Origin(models.Model):
     name = models.CharField(max_length=1024,
                             verbose_name=u"nome")
-    #registered = models.BooleanField(default=False,
-    #                                 editable=False,
-    #                                 verbose_name=u'registrado')
+    auth_token = models.CharField(max_length=64, editable=False)
     remote_id = models.BigIntegerField(editable=False)
 
     class Meta:
@@ -19,9 +17,9 @@ class Origin(models.Model):
         return self.name
 
     @staticmethod
-    def get():
+    def instance():
         return Origin.objects.filter(pk=1) or None
-
+    
     #@staticmethod
     #def register(web_server, name):
     #    return web_server.register(name)

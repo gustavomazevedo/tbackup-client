@@ -1,0 +1,11 @@
+[
+{
+    "pk": 1,
+    "model": "client.webserver",
+    "fields": {
+        "name": "WebServer",
+        "uel": "http://127.0.0.1:7000",
+        "api_root": "/",
+        }
+},
+]

@@ -8,6 +8,7 @@ from django.utils import timezone
 from django.core.urlresolvers import reverse
 from client.conf.settings import DATETIME_FORMAT, settings
 
+from client import functions
 
 def get_path_name(instance, filename):
     return u'/'.join([instance.schedule.destination.name, filename])
@@ -59,18 +60,26 @@ class Backup(models.Model):
                              choices=STATE_CHOICES,
                              default=IDLE)
     last_error = models.TextField(null=True)
+    remote_id  = models.BigIntegerField()
     
     #meta config
     class Meta:
         #app_label required when scathering models in multiple files
         app_label = 'client'
         
-    def __unicode__(self, ):
+    def __unicode__(self):
         return self.name
+    
+    def remote_url(self):
+        from django.core.urlresolvers import reverse
+        from client import views
+        return functions.to_hyperlink(reverse(views.restore) + self.remote_id)
+    remote_url.allow_tags = True
+    remote_url.short_description = ''
     
     def get_name(self):
         return u'%(origin_name)s_%(dt)s_%(kind)s' % {
-            'origin_name': Origin.get().name,
+            'origin_name': Origin.instance().name,
             'dt'         : time.strftime(self.TIMEFORMAT, self.time),
             'kind'       : self.kind,
         }

@@ -99,7 +99,7 @@ class DestinationCase(TestCase):
     #    Destination.update()
     #    Origin.register()
     #    
-    #    WebServer.get().backup(
+    #    WebServer.instance().backup(
     #        {
     #            ''
     #        }

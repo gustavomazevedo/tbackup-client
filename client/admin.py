@@ -35,10 +35,10 @@ class OriginAdmin(admin.ModelAdmin):
         return True
 
     def save_model(self, request, obj, form, change):
-        data = WebServer.get().register(request.POST.get('name', None))
+        data = WebServer.instance().register(request.POST.get('name', None))
         if not data:
             raise PermissionDenied()
-        ws = WebServer.get()
+        ws = WebServer.instance()
         ws.apikey = data.get('apikey')
         ws.save()
         obj.remote_id = data.get('id')
@@ -61,12 +61,12 @@ class ScheduleAdmin(admin.ModelAdmin):
 
     def add_view(self, request, form_url='', extra_context=None):
         if request.method == GET:
-            Destination.update(WebServer.get(), Origin.objects.get(pk=1).remote_id)
+            Destination.update(WebServer.instance(), Origin.objects.get(pk=1).remote_id)
         return super(ScheduleAdmin, self).add_view(request, form_url, extra_context)
     
     def change_view(self, request,form_url=''):
         if request.method == GET:
-            Destination.update(WebServer.get(), Origin.objects.get(pk=1).remote_id)
+            Destination.update(WebServer.instance(), Origin.objects.get(pk=1).remote_id)
         return super(ScheduleAdmin, self).change_view(request,form_url)
 
 class WebServerAdmin(admin.ModelAdmin):

@@ -121,7 +121,7 @@ class Command(BaseCommand):
         """
         for unsent in Backup.objects.filter(Q(state=Backup.WAITING) |
                                             Q(state=Backup.ERROR_SENDING)):
-            unsent.send(WebServer.get())
+            unsent.send(WebServer.instance())
 
     def retry_failed_backups(self):
         """
@@ -158,7 +158,7 @@ class Command(BaseCommand):
             #backup
             backup_job.backup()
             #send to WebServer
-            backup_job.send(WebServer.get())
+            backup_job.send(WebServer.instance())
             
     def get_schedules_to_run(self, t):
         """
