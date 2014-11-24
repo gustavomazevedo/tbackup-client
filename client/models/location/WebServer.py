@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import os
 import socket
+import slumber
 
 from django.db import models
 from django.utils.translation import gettext_lazy as _
@@ -13,7 +14,9 @@ from client.conf.settings import (
     #WEBSERVER_API_URL,
     #WEBSERVER_API_VERSION
 )
+from client.auth import HTTPTokenAuth
 from client.functions import json_request
+
 
 class WebServer(models.Model):
     name          = models.CharField(max_length=80,
@@ -92,12 +95,28 @@ class WebServer(models.Model):
         answer = False
         try:
             s.connect((hostname,7000))
-            #s.connect((hostname,80))
+            #s.connect((hostname,443))
             answer = True
         except:
-            pass
-        s.close()
+            try:
+                s.connect((hostname,80))
+                answer = True
+            except:
+                answer = False
+        finally:
+            s.close()
+            
         return answer
+    
+    def get_api_with_username_password(self, username, password):
+        return slumber.API(self.url, auth=(username, password))
+    
+    def get_api(self):
+        token = Origin.instance().auth_token
+        return slumber.API(self.url, auth=HTTPTokenAuth(token))
+    
+    def get_api(self, auth):
+        return slumber.API(self.url, auth=auth)
     
     #def update(self, url, api_url, api_version, apikey, active):
     #    self.url = url

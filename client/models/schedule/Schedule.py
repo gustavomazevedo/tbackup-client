@@ -28,8 +28,12 @@ class Schedule(models.Model):
             'destination_name': self.destination.name,
             'rule': u' (%s) ' % self.rule if self.rule else ' ',
             'schedule_time':
-                datetime.strftime(timezone.localtime(self.schedule_time),
-                    '%H:%M' if self.rule else '%d/%m/%Y %H:%M')
+                datetime.strftime(
+                    timezone.localtime(
+                        self.schedule_time
+                    ),
+                    '%H:%M' if self.rule else '%d/%m/%Y %H:%M'
+                )
         }
     
     def save(self, *args, **kwargs):

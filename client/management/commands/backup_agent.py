@@ -150,13 +150,24 @@ class Command(BaseCommand):
         self.stdout.write(str(len(schedules)))
         if len(schedules) == 0: return
         
+        ws = WebServer.instance()
+        o = Origin.instance()
+        api = ws.get_api(auth=HTTPTokenAuth(o.auth_token))
+        
         for s in schedules:
             #get or create job
             backup_job, created = Backup.objects.get_or_create(schedule=s,
                                                            time=now)
             self.stdout.write(str(created))
             #backup
-            backup_job.backup()
+            filename, contents = backup_job.backup()
+            backup = {
+                'name': filename,
+                'destination': backup_job.destination.name,
+                'date': timezone.now(),
+            }
+            api.backups.post(backup, files={'file': contents})
+            
             #send to WebServer
             backup_job.send(WebServer.instance())
             

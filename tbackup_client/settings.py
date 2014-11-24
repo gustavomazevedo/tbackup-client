@@ -46,7 +46,7 @@ INSTALLED_APPS = (
     'south',
     'django_tables2',
     'client',
-    
+
 )
 
 MIDDLEWARE_CLASSES = (
@@ -63,7 +63,7 @@ TEMPLATE_CONTEXT_PROCESSORS = (
     'django.core.context_processors.request',
     'django.core.context_processors.static',
 )
-    
+
 
 ROOT_URLCONF = 'tbackup_client.urls'
 
