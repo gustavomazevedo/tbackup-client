@@ -20,7 +20,7 @@ from client.functions import json_request
 
 class WebServer(models.Model):
     name          = models.CharField(max_length=80,
-                                   verbose_name=u"nome")
+                                     verbose_name=u"nome")
     url           = models.CharField(max_length=1024)
     api_root      = models.CharField(max_length=1024)
     active        = models.BooleanField(default=True)

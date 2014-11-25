@@ -7,6 +7,7 @@ from django.utils import timezone
 
 from django.core.urlresolvers import reverse
 from client.conf.settings import DATETIME_FORMAT, settings
+from django.utils.html import format_html
 
 from client import functions
 
@@ -86,10 +87,9 @@ class Backup(models.Model):
     
     def restore_link(self):
         if self.state in (self.FINISHED, self.REMOVED_LOCAL):
-            return '<a href="%(restore)s">Restore<img src="%(image)s"/></a>' % {
-                'restore': reverse('url_restore', args=(self.id,)),
-                'image'  : '%simg/Refresh.png' % settings.STATIC_URL, 
-            }
+            return format_html('<a href="{0}">Restore<img src="{1}"/></a>',
+                               reverse('url_restore', args=(self.id,)),
+                               '%simg/Refresh.png' % settings.STATIC_URL)
         return ''
     restore_link.short_description = 'Restaurar'
     restore_link.allow_tags = True
