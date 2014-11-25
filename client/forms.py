@@ -11,65 +11,32 @@ from .constants import TIMEDELTA_CHOICES
 class OriginForm(forms.ModelForm):
     model = Origin
     password = forms.PasswordInput()
+    api = WebServer.instance().get_api()
     
     def clean(self):
         cleaned_data = super(OriginForm, self).clean()
-        data = WebServer.instance().check_availability(cleaned_data.get(u"name", None))
-        if data:
-            if not data.get(u"availability"):
-                raise forms.ValidationError(u"Nome já está sendo utilizado. Por favor, escolha um novo nome ou contacte os administradores.")
-        else:
+        
+        response_data = self.api.users.get(username=cleaned_data.get(u"name", None))
+	available = response_data.get('available', None)
+	if available is None:
             raise forms.ValidationError(u"Não foi possível conectar-se ao servidor")
+        elif available == False:
+            raise forms.ValidationError(u"Nome já está sendo utilizado. Por favor, escolha um novo nome ou contacte os administradores.")
         return cleaned_data
-
-#class TimedeltaWidget(widgets.MultiWidget):
-#    def __init__(self, attrs=None):
-#        widget = (
-#            widgets.TextInput(attrs={'size': 3, 'maxlength': 3}),
-#            widgets.Select(choices=TIMEDELTA_CHOICES),
-#            )
-#        super(TimedeltaWidget, self).__init__(widget, attrs=attrs)
-#        
-#    def decompress(self, value):
-#        if value:
-#            for div, name in reversed(TIMEDELTA_CHOICES):
-#                if value % div == 0:
-#                    return [str(value / div), str(div)]
-#        return [None, None]
-#    
-#    def format_output(self, rendered_widgets):
-#        return u''.join(rendered_widgets)
-
-#class TimedeltaFormField(forms.MultiValueField):
-#    widget = TimedeltaWidget
-#    
-#    def __init__(self, *args, **kwargs):
-#        fields = (
-#            forms.IntegerField(),
-#            forms.ChoiceField(choices=TIMEDELTA_CHOICES),
-#        )
-#        super(TimedeltaFormField, self).__init__(fields, *args, **kwargs)
-#
-#    def compress(self, data_list):
-#        if data_list:
-#            vals = self._check_values(data_list)
-#            return vals[0] * vals[1]
-#        return None
-#    
-#    def _check_values(self, values):
-#        try:
-#            vals = [int(values[0]), int(values[1])]
-#            return vals
-#        except ValueError:
-#            raise forms.ValidationError(u'Este campo deve receber um número inteiro')
-#        
-#class ConfigForm(forms.ModelForm):
-#    interval = TimedeltaFormField(label=u'Periodicidade')
-#    
-#    class Meta:
-#        exclude = ('last_backup',)
-#    
     
+    def is_valid(self):
+	print self
+	print self.name
+	print self.password
+	
+	result = {}
+	try:
+	    result = self.api.users.post(remote_user)
+	except Exception as e:
+	    print e
+	    raise
+	
+	return super(OriginForm, self).is_valid()
         
 class RegisterForm(forms.ModelForm):
     name = forms.RegexField(max_length=80,

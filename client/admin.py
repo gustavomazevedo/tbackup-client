@@ -26,26 +26,26 @@ class OriginAdmin(admin.ModelAdmin):
     form = OriginForm
     
     def has_add_permission(self, request):
-        return not Origin.objects.filter(pk=1).exists()
+        return request.user.is_superuser and not Origin.objects.filter(pk=1).exists()
 
     def has_delete_permission(self, request, obj=None):
-        return True
+        return request.user.is_superuser
     
     def has_change_permission(self, request, obj=None):
-        return True
+        return request.user.is_superuser
 
-    def save_model(self, request, obj, form, change):
-        data = WebServer.instance().register(request.POST.get('name', None))
-        if not data:
-            raise PermissionDenied()
-        ws = WebServer.instance()
-        ws.apikey = data.get('apikey')
-        ws.save()
-        obj.remote_id = data.get('id')
-        obj.save()
+    #def save_model(self, request, obj, form, change):
+    #    data = WebServer.instance().register(request.POST.get('name', None))
+    #    if not data:
+    #        raise PermissionDenied()
+    #    ws = WebServer.instance()
+    #    ws.apikey = data.get('apikey')
+    #    ws.save()
+    #    obj.remote_id = data.get('id')
+    #    obj.save()
     
-    def change_view(self, request,form_url=''):
-        return HttpResponseForbidden()
+    #def change_view(self, request,form_url=''):
+    #    return HttpResponseForbidden()
 
 class ScheduleAdmin(admin.ModelAdmin):
     origin_exists = Origin.objects.filter(pk=1).exists()
@@ -70,9 +70,9 @@ class ScheduleAdmin(admin.ModelAdmin):
         return super(ScheduleAdmin, self).change_view(request,form_url)
 
 class WebServerAdmin(admin.ModelAdmin):
-    readonly_fields = ('apikey',)
+    #readonly_fields = ('apikey',)
     list_display = ( 'name',
-                     'apikey',
+    #                 'apikey',
                      'url'
                    )
     def has_add_permission(self, request):
