@@ -48,16 +48,15 @@ class OriginAdmin(admin.ModelAdmin):
     #    return HttpResponseForbidden()
 
 class ScheduleAdmin(admin.ModelAdmin):
-    origin_exists = Origin.objects.filter(pk=1).exists()
     
-    def has_add_permission(self, request):
-        return self.origin_exists
+    #def has_add_permission(self, request):
+    #    return Origin.objects.filter(pk=1).exists()
 
-    def has_delete_permission(self, request, obj=None):
-        return self.origin_exists
+    #def has_delete_permission(self, request, obj=None):
+    #    return self.origin_exists
     
-    def has_change_permission(self, request, obj=None):
-        return self.origin_exists
+    #def has_change_permission(self, request, obj=None):
+    #    return self.origin_exists
 
     def add_view(self, request, form_url='', extra_context=None):
         if request.method == GET:
@@ -85,6 +84,7 @@ class WebServerAdmin(admin.ModelAdmin):
         return WebServer.objects.filter(pk=1).exists()
     
 admin.site.register(Origin, OriginAdmin)
-admin.site.register(Schedule, ScheduleAdmin)
+if Origin.objects.filter(pk=1).exists():
+    admin.site.register(Schedule, ScheduleAdmin)
 admin.site.register(WebServer, WebServerAdmin)
 admin.site.register([Destination, Backup, RRule])

@@ -14,9 +14,13 @@ from client.conf.settings import (
     #WEBSERVER_API_URL,
     #WEBSERVER_API_VERSION
 )
-from client.auth import HTTPTokenAuth
 from client.functions import json_request
 
+DEFAULT_TOKEN_AUTH = None
+try:
+    from client.default_auth import DEFAULT_TOKEN_AUTH
+except ImportError:
+    pass
 
 class WebServer(models.Model):
     name          = models.CharField(max_length=80,
@@ -108,15 +112,10 @@ class WebServer(models.Model):
             
         return answer
     
-    def get_api_with_username_password(self, username, password):
-        return slumber.API(self.url, auth=(username, password))
     
-    def get_api(self):
-        token = Origin.instance().auth_token
-        return slumber.API(self.url, auth=HTTPTokenAuth(token))
-    
-    def get_api(self, auth):
-        return slumber.API(self.url, auth=auth)
+    def get_api(self, auth=None):
+        _auth = auth if auth else DEFAULT_TOKEN_AUTH
+        return slumber.API(self.url, auth=_auth)
     
     #def update(self, url, api_url, api_version, apikey, active):
     #    self.url = url
