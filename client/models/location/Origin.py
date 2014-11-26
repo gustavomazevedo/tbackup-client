@@ -5,6 +5,7 @@ from django.db import models
 class Origin(models.Model):
     name = models.CharField(max_length=1024,
                             verbose_name=u"nome")
+    email = models.EmailField(null=True)
     auth_token = models.CharField(max_length=64, editable=False)
     remote_id = models.BigIntegerField(editable=False)
 
