@@ -11,7 +11,7 @@ from django.utils.translation import ugettext_lazy as _
 
 class Schedule(models.Model):    
     destination  = models.CharField(max_length=1024)
-    initial_time = models.DateTimeField(verbose_name=_("initial datetime"))
+    initial_time = models.DateTimeField(verbose_name=_("initial datetime"), default=timezone.now())
     rule         = models.ForeignKey('RRule',
                                       null=True,
                                       blank=True,
