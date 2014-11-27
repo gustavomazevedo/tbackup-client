@@ -88,7 +88,7 @@ class Backup(models.Model):
         self.destination = self.schedule.destination
         #backs up data
         if self.file is None:
-            
+            pass
     
     def remote_url(self):
         from django.core.urlresolvers import reverse
