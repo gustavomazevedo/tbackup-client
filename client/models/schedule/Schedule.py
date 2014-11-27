@@ -5,9 +5,6 @@ from dateutil     import rrule
 from django.db    import models
 from django.utils import timezone
 
-from datetime.datetime import strftime
-from django.utils.timezone import localtime
-
 from client.functions import normalize_time
 
 from django.utils.translation import ugettext_lazy as _
@@ -29,8 +26,10 @@ class Schedule(models.Model):
         return u"%(destination)s%(rule)s@ %(initial_time)s" % {
             'destination' : self.destination,
             'rule'        : u' (%s) ' % self.rule if self.rule else ' ',
-            'initial_time': strftime(localtime(self.initial_time),
-                                     '%H:%M' if self.rule else '%d/%m/%Y %H:%M')
+            'initial_time': datetime.strftime(
+                                timezone.localtime(self.initial_time),
+                                '%H:%M' if self.rule else '%d/%m/%Y %H:%M'
+                            )
         }
     
     def save(self, *args, **kwargs):
