@@ -11,8 +11,12 @@ from django.utils.html import format_html
 
 from client import functions
 
+from client.models.location import Origin
+
+import os.path
+
 def get_path_name(instance, filename):
-    return u'/'.join([instance.schedule.destination.name, filename])
+    return os.path.join('.', instance.schedule.destination, filename)
 
 class Backup(models.Model):
     #enum for states
@@ -50,13 +54,23 @@ class Backup(models.Model):
     TIMEFORMAT = '%Y%m%d%H%M'
     
     #model fields
-    name        = models.CharField(max_length=256)
+    name = models.CharField(max_length=256)
+    file = models.FileField(upload_to=get_path_name, null=True, blank=True)
+    
     schedule    = models.ForeignKey('Schedule')
-    time        = models.DateTimeField()
-    local_file  = models.FileField(upload_to=get_path_name,
-                                 null=True)
-    size        = models.BigIntegerField(null=True)
-    destination = models.CharField(max_length=256, null=True)
+    origin      = models.CharField(max_length=256, null=True, blank=True)
+    destination = models.CharField(max_length=256, null=True, blank=True)
+    
+    #local_backup_date  = models.DateTimeField(null=True)
+    remote_backup_date = models.DateTimeField(null=True, blank=True)
+    
+    last_error = models.TextField(null=True, blank=True)
+    remote_id  = models.BigIntegerField(null=True, blank=True)
+    
+    #time     = models.DateTimeField()
+    
+    #size        = models.BigIntegerField(null=True)
+    
     #kind = models.CharField(max_length=13,
     #                        choices=KIND_CHOICES,
     #                        default=SCHEDULED)
@@ -64,15 +78,10 @@ class Backup(models.Model):
     #                         choices=STATE_CHOICES,
     #                         default=IDLE)
     
-    local_backup_date  = models.DateTimeField(null=True)
-    remote_backup_date = models.DateTimeField(null=True)
-    
-    last_error = models.TextField(null=True)
-    remote_id  = models.BigIntegerField()
     
     @property
     def local_completed(self):
-        return self.local_backup_date is not None
+        return self.file is not None
     
     @property
     def remote_completed(self):
@@ -86,25 +95,20 @@ class Backup(models.Model):
     def __unicode__(self):
         return self.name
     
-    
-    def save(self, *args, **kwargs):
-        self.full_clean()
-        super(Backup, self).save(*args, **kwargs)
+    #def save(self, *args, **kwargs):
+    #    self.full_clean()
+    #    super(Backup, self).save(*args, **kwargs)
     
     def clean(self):
         super(Backup, self).clean()
-        
-        #if backup is already created, ignores the rest of the method
-        if self.created:
-            return
         
         #logs current origin name from Origin
         self.origin = Origin.instance().name
         #logs current destination name from Schedule:
         self.destination = self.schedule.destination
         #backs up data
-        if self.file is None:
-            pass
+        #if self.file is None:
+        #    self.file = self.dumpdata_apps()
     
     def remote_url(self):
         from django.core.urlresolvers import reverse
@@ -131,22 +135,22 @@ class Backup(models.Model):
     
     
     
-    def advance_state(self):
-        print 'from %s ' % self.state
-        if self.state == self.IDLE:
-            self.state = self.RUNNING
-        elif self.state == self.RUNNING:
-            self.state = self.WAITING
-        elif self.state == self.WAITING:
-            self.state = self.SENDING
-        elif self.state == self.SENDING:
-            self.state = self.FINISHED
-        elif self.state == self.FINISHED:
-            self.state = self.REMOVED_LOCAL
-        else:
-            #raise Exception('State: %s. Cannot advance state.' % self.state)
-            return
-        print 'to %s ' % self.state
+    #def advance_state(self):
+    #    print 'from %s ' % self.state
+    #    if self.state == self.IDLE:
+    #        self.state = self.RUNNING
+    #    elif self.state == self.RUNNING:
+    #        self.state = self.WAITING
+    #    elif self.state == self.WAITING:
+    #        self.state = self.SENDING
+    #    elif self.state == self.SENDING:
+    #        self.state = self.FINISHED
+    #    elif self.state == self.FINISHED:
+    #        self.state = self.REMOVED_LOCAL
+    #    else:
+    #        #raise Exception('State: %s. Cannot advance state.' % self.state)
+    #        return
+    #    print 'to %s ' % self.state
             
     def update_error(self, exc_info):
         exc_type, exc_value, exc_traceback = exc_info
@@ -166,30 +170,30 @@ class Backup(models.Model):
             'function': 'BACKUP',
             'dest': self.destination,
             'pk': self.pk,
-            'time': self.time,
-            'state': self.state,
+        #    'time': self.time,
+        #    'state': self.state,
             'schedule': self.schedule,
             'error': self.last_error,
         }
-        if self.ERROR_RUNNING:
-            self.state = self.IDLE
-        if self.state != self.IDLE:
-            #raise Exception('State: %s. Cannot run local backup.' % self.state)
-            return
-        self.advance_state()
+        #if self.ERROR_RUNNING:
+        #    self.state = self.IDLE
+        #if self.state != self.IDLE:
+        #    #raise Exception('State: %s. Cannot run local backup.' % self.state)
+        #    return
+        #self.advance_state()
         try:
             self.local_backup()
-            self.advance_state()
+        #    self.advance_state()
         except:
             import sys
             self.update_error(sys.exc_info())
-            self.state = self.ERROR_RUNNING
+        #    self.state = self.ERROR_RUNNING
         
         #schedule next backup if there's a recurrence rule    
-        next_run = self.schedule.next_run()
-        if next_run is not None:
+        next_runtime = self.schedule.next_runtime()
+        if next_runtime is not None:
             Backup.objects.create(schedule=self.schedule,
-                                  time=next_run)
+                                  time=next_runtime)
         self.save()
         
         

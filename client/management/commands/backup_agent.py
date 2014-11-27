@@ -8,67 +8,92 @@ import pytz
 
 from datetime    import datetime, timedelta
 from Crypto.Hash import SHA
+from StringIO import StringIO
 
-from django.conf                 import settings
-from django.utils                import timezone
-from django.core.management      import call_command
+from client.conf.settings import DATETIME_FORMAT, settings
+from django.utils import timezone
+from django.core.files.base import ContentFile
+from django.core.management import call_command
 from django.core.management.base import BaseCommand, make_option
-from django.db.models            import F, Q
-from client.models               import ( Origin
-                                        , WebServer
-                                        , Backup
-                                        , Schedule
-                                        )
+from django.db.models import F, Q
+from client.models import (
+    Origin,
+    WebServer,
+    Backup,
+    Schedule,
+)
+
 from client import functions
 from client.auth import HTTPTokenAuth
 
 TBACKUP_DUMP_DIR = settings.TBACKUP_DUMP_DIR
+DATETIME_FORMAT = ''
+
+def get_project_dump_file():
+    apps = settings.TBACKUP_APPS
+    contents = StringIO()
+    contents_gzipped = StringIO()
+    
+    call_command('dumpdata', *apps, stdout=contents)
+    contents.seek(0)
+    gzip_file = gzip.GzipFile(fileobj=contents_gzipped, mode='w')
+    gzip_file.write(contents.read())
+    gzip_file.close()
+    
+    #newfilename = filename + '.db.gz'
+    #    
+    #f_in  = open(os.path.join(TBACKUP_DUMP_DIR,filename), 'rb')
+    #f_out = gzip.open(os.path.join(TBACKUP_DUMP_DIR,newfilename), 'wb',9)
+    #
+    #f_out.writelines(f_in)
+    #f_out.close()
+    #f_in.close()
+    #os.remove(os.path.join(TBACKUP_DUMP_DIR,filename))
+    #
+    #log.filename = newfilename
+    #log.local_status = True
+    
+    contents_gzipped.seek(0, 2)
+    return contents_gzipped
+    
 
 class Command(BaseCommand):
     option_list = BaseCommand.option_list + (
-        make_option('--backup-trigger',
-                    '-b',
-                    action='store_true',
-                    dest  ='trigger_backups',
-                    help  =('Backs up data and sends backups across server if '
-                    'it''s scheduled to run at the date and time of execution')
+        make_option(
+            '--backup-trigger',
+            '-b',
+            action='store_true',
+            dest  ='trigger_backups',
+            help  =('Backs up data and sends backups across server if '
+            'it''s scheduled to run at the date and time of execution of this script')
         ),
-        make_option('--schedule-jobs',
-                    '-j',
-                    action='store_true',
-                    dest  ='schedule_missing_jobs',
-                    help  ='Schedule missing future jobs (in case of failure in the past)'
+        make_option(
+            '--retry-backup',
+            '-r',
+            action='store_true',
+            dest  ='retry_failed_backups',
+            help  ='Retry backing up (locally) failed past attempts'
         ),
-        make_option('--retry-backup',
-                    '-r',
-                    action='store_true',
-                    dest  ='retry_failed_backups',
-                    help  ='Retry backing up (locally) failed past attempts'
+        make_option(
+            '--send-backups',
+            '-s',
+            action='store_true',
+            dest  ='send_unsent_backups',
+            help  ='Send unsent backups to WebServer'
         ),
-        make_option('--send-backups',
-                    '-s',
-                    action='store_true',
-                    dest  ='send_unsent_backups',
-                    help  ='Send unsent backups to WebServer'
-        ),
-        make_option('--all-tasks',
-                    '-a',
-                    action='store_true',
-                    dest  ='all_missing_tasks',
-                    help  ='Does -j, -r and then -s'
-        ),
-        make_option('--update-info',
-                    '-u',
-                    action='store_true',
-                    dest  ='update_info',
-                    help  ='Updates info about WebServer and Destination'
+        make_option(
+            '--all-tasks',
+            '-a',
+            action='store_true',
+            dest  ='all_missing_tasks',
+            help  ='Runs -r and then -s'
         ),
     )
 
     def handle(self, *args, **options):
         #try:
             #Don't accept commands if origin is not registered
-            if not Origin.objects.filter(pk=1).exists():
+            if not Origin.objects.exists():
                 return
 
             if options.get('trigger_backups', False):
@@ -90,27 +115,27 @@ class Command(BaseCommand):
 #            backup.save()
 
     def all_missing_tasks(self):
-        self.schedule_missing_jobs()
+        #self.schedule_missing_jobs()
         self.retry_failed_backups()
         self.send_unsent_backups()
 
-    def schedule_missing_jobs(self):
-        """
-        Schedule missing future jobs (in case of failure in the past)
-        Recommended to run as a hourly periodic task
-        """
-        #get all active schedules
-        schedules = Schedule.objects.filter(active=True)
-        #get all future jobs
-        backup_jobs = Backup.objects.filter(time__gte=timezone.now())
-        #filter next run for all future jobs
-        b_initial_times = (b.schedule.next_runtime() for b in backup_jobs)
-        #filter unscheduled jobs
-        unscheduled = (s for s in schedules if s.next_runtime() not in b_initial_times)
-        #schedule all missing jobs
-        for u in unscheduled:
-            Backup.objects.create(schedule=u,
-                                  time=u.next_runtime())
+    #def schedule_missing_jobs(self):
+    #    """
+    #    Schedule missing future jobs (in case of failure in the past)
+    #    Recommended to run as a hourly periodic task
+    #    """
+    #    #get all active schedules
+    #    schedules = Schedule.objects.filter(active=True)
+    #    #get all future jobs
+    #    backup_jobs = Backup.objects.filter(time__gte=timezone.now())
+    #    #filter next run for all future jobs
+    #    b_initial_times = (b.schedule.next_runtime() for b in backup_jobs)
+    #    #filter unscheduled jobs
+    #    unscheduled = (s for s in schedules if s.next_runtime() not in b_initial_times)
+    #    #schedule all missing jobs
+    #    for u in unscheduled:
+    #        Backup.objects.create(schedule=u,
+    #                              time=u.next_runtime())
 
     def send_unsent_backups(self):
         """
@@ -133,73 +158,82 @@ class Command(BaseCommand):
         for b in backups:
             b.backup()
 
-
-
     def trigger_backups(self):
         """
         This task will trigger backups to run if it's the scheduled date and time
         """
-        #current time
-        now = functions.normalize_time(timezone.now())
-        self.stdout.write(str(timezone.make_naive(timezone.now(), pytz.timezone(settings.TIME_ZONE))))
-        self.stdout.write(str(timezone.make_naive(now, pytz.timezone(settings.TIME_ZONE))))
-        #get schedules to run now
-        schedules = self.get_schedules_to_run(now)
-        self.stdout.write(str(len(schedules)))
-        if len(schedules) == 0: return
-
         if not WebServer.objects.exists():
             raise Exception(_('WebServer does not exist'))
-
         if not Origin.objects.exists():
             raise Exception(_('Origin does not exist'))
+        
+        #current time
+        now = functions.normalize_time(timezone.now())
+        now_str = datetime.strftime(now, DATETIME_FORMAT)
+        formatted_now = now_str[:now_str.rfind('.')]
+        
+        #get schedules to run now
+        schedules = self.get_schedules_to_run(now)
+        
+        self.stdout.write(str(timezone.make_naive(timezone.now(), pytz.timezone(settings.TIME_ZONE))))
+        self.stdout.write(str(timezone.make_naive(now, pytz.timezone(settings.TIME_ZONE))))
+        self.stdout.write(str(len(schedules)))
+        
+        if len(schedules) == 0: return
 
-        token = HTTPTokenAuth(Origin.instance().auth_token)
+        origin = Origin.instance()
+        username = origin.name
+        token = HTTPTokenAuth(origin.auth_token)
         api = WebServer.instance().get_api(auth=token)
-
+        
+        filename = '%(username)s_%(datetime)s.gz' % {
+            'username': username,
+            'datetime': formatted_now
+        }
+        
+        file_contents = get_project_dump_file()
+        
+        assert file_contents is not None
+        assert isinstance(file_contents, StringIO)
+        
         for s in schedules:
             #get or create job
-            backup_job, created = Backup.objects.get_or_create(schedule=s,
-                                                               time=now)
-            self.stdout.write('Created? %s' % str(created))
-            #backup
-            filename, contents = backup_job.backup()
-            backup = {
+            backup_obj = Backup(name=filename, schedule=s)
+            backup_obj.full_clean()
+            backup_obj.save()
+            backup_obj.file.save(filename, ContentFile(file_contents))
+            
+            remote_backup_info = {
                 'name': filename,
-                'destination': backup_job.destination.name,
+                'destination': backup_obj.destination,
                 'date': now,
             }
-
+            
+            file_contents.seek(0)
             #post to server
-            result = api.backups.post(backup, files={'file': contents})
-
-            if not 'id' in result:
-                backup.state = Backup.ERROR_SENDING
-
-            #send to WebServer
-            #backup_job.send(WebServer.instance())
+            try:
+                result = api.backups.post(remote_backup_info, files={'file': file_contents})
+                if 'id' in result:
+                    backup_obj.remote_backup_date = timezone.now()
+                    backup_obj.save()
+                else:
+                    raise Exception(_('Server response not recognized: %s' % result))
+            except Exception as e:
+                raise Exception(_('Error sending backup to server: %s' % e))
 
     def get_schedules_to_run(self, t):
         """
-        Fetches all active schedules to run now
+        Fetches all active jobs scheduled to run now
         """
-        #schedules = Schedule.objects.filter(active=True,
-        #                                    initial_time__hour=t.hour,
-        #                                    initial_time__minute=t.minute)
-        #return [s for s in schedules if s.is_runtime(t)]
-        min_t = t - timedelta(seconds=30)
-        max_t = t + timedelta(seconds=30)
+        #django converts UTC to localtime in filters, so we need to
+        #convert our t to a local_t, naive datetime object
+        #to get filter to work :(
+        local_t = timezone.make_naive(t, pytz.timezone(settings.TIME_ZONE))
         schedules = Schedule.objects.filter(active=True,
-                                            initial_time__gt=min_t,
-                                            initial_time__lt=max_t)
-        print schedules
-        #schedules = Schedule.objects.all()
-        for s in schedules:
-            print t, s.initial_time
-            print t.hour, s.initial_time.hour
-            print t.minute, s.initial_time.minute
+                                            initial_time__hour=local_t.hour,
+                                            initial_time__minute=local_t.minute)
         return [s for s in schedules if s.is_runtime(t)]
-
+        
 #def fill_data():
 #    from dummy_app.models import DummyData
 #    for i in xrange(5):
