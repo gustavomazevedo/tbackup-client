@@ -104,13 +104,13 @@ class Command(BaseCommand):
         #get all future jobs
         backup_jobs = Backup.objects.filter(time__gte=timezone.now())
         #filter next run for all future jobs
-        b_schedule_times = (b.schedule.next_run() for b in backup_jobs)
+        b_initial_times = (b.schedule.next_runtime() for b in backup_jobs)
         #filter unscheduled jobs
-        unscheduled = (s for s in schedules if s.next_run() not in b_schedule_times)
+        unscheduled = (s for s in schedules if s.next_runtime() not in b_initial_times)
         #schedule all missing jobs
         for u in unscheduled:
             Backup.objects.create(schedule=u,
-                                  time=u.next_run())
+                                  time=u.next_runtime())
 
     def send_unsent_backups(self):
         """
@@ -184,21 +184,21 @@ class Command(BaseCommand):
         Fetches all active schedules to run now
         """
         #schedules = Schedule.objects.filter(active=True,
-        #                                    schedule_time__hour=t.hour,
-        #                                    schedule_time__minute=t.minute)
-        #return [s for s in schedules if s.trigger(t)]
+        #                                    initial_time__hour=t.hour,
+        #                                    initial_time__minute=t.minute)
+        #return [s for s in schedules if s.is_runtime(t)]
         min_t = t - timedelta(seconds=30)
         max_t = t + timedelta(seconds=30)
         schedules = Schedule.objects.filter(active=True,
-                                            schedule_time__gt=min_t,
-                                            schedule_time__lt=max_t)
+                                            initial_time__gt=min_t,
+                                            initial_time__lt=max_t)
         print schedules
         #schedules = Schedule.objects.all()
         for s in schedules:
-            print t, s.schedule_time
-            print t.hour, s.schedule_time.hour
-            print t.minute, s.schedule_time.minute
-        return [s for s in schedules if s.trigger(t)]
+            print t, s.initial_time
+            print t.hour, s.initial_time.hour
+            print t.minute, s.initial_time.minute
+        return [s for s in schedules if s.is_runtime(t)]
 
 #def fill_data():
 #    from dummy_app.models import DummyData

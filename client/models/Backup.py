@@ -16,52 +16,67 @@ def get_path_name(instance, filename):
 
 class Backup(models.Model):
     #enum for states
-    IDLE          = 'IDLE'
-    RUNNING       = 'RUNNING'
-    ERROR_RUNNING = 'ERROR_RUNNING'
-    WAITING       = 'WAITING'
-    SENDING       = 'SENDING'
-    ERROR_SENDING = 'ERROR_SENDING'
-    FINISHED      = 'FINISHED'
-    REMOVED_LOCAL = 'REMOVED_LOCAL'
-    #choices for state column
-    STATE_CHOICES = (
-        (IDLE         , u'Não Iniciado.'),
-        (RUNNING      , u'Executando backup local.'),
-        (ERROR_RUNNING, u'Erro ao tentar executar o backup local.'),
-        (WAITING      , u'Aguardando para enviar.'),
-        (SENDING      , u'Enviando para servidor.'),
-        (ERROR_SENDING, u'Erro ao tentar enviar para servidor.'),
-        (FINISHED     , u'Backup finalizado.'),
-        (REMOVED_LOCAL, u'Cópia local removida. Restauro apenas online.'),
-    )
-    #enum for kind
-    SCHEDULED     = 'SCHEDULED'
-    EXTRAORDINARY = 'EXTRAORDINARY'
-    #choices for kind column
-    KIND_CHOICES = (
-        (SCHEDULED    , 'Agendado'),
-        (EXTRAORDINARY, 'Especial'),
-    )
+    #PENDIND = None
+    #FAILURE = False
+    #SUCCESS = True
+    #IDLE          = 'IDLE'
+    #RUNNING       = 'RUNNING'
+    #ERROR_RUNNING = 'ERROR_RUNNING'
+    #WAITING       = 'WAITING'
+    #SENDING       = 'SENDING'
+    #ERROR_SENDING = 'ERROR_SENDING'
+    #FINISHED      = 'FINISHED'
+    #REMOVED_LOCAL = 'REMOVED_LOCAL'
+    ##choices for state column
+    #STATE_CHOICES = (
+    #    (IDLE         , u'Não Iniciado.'),
+    #    (RUNNING      , u'Executando backup local.'),
+    #    (ERROR_RUNNING, u'Erro ao tentar executar o backup local.'),
+    #    (WAITING      , u'Aguardando para enviar.'),
+    #    (SENDING      , u'Enviando para servidor.'),
+    #    (ERROR_SENDING, u'Erro ao tentar enviar para servidor.'),
+    #    (FINISHED     , u'Backup finalizado.'),
+    #    (REMOVED_LOCAL, u'Cópia local removida. Restauro apenas online.'),
+    #)
+    ##enum for kind
+    #SCHEDULED     = 'SCHEDULED'
+    #EXTRAORDINARY = 'EXTRAORDINARY'
+    ##choices for kind column
+    #KIND_CHOICES = (
+    #    (SCHEDULED    , 'Agendado'),
+    #    (EXTRAORDINARY, 'Especial'),
+    #)
     
     TIMEFORMAT = '%Y%m%d%H%M'
     
     #model fields
-    name      = models.CharField(max_length=256)
-    schedule  = models.ForeignKey('Schedule')
-    time      = models.DateTimeField()
-    local_file= models.FileField(upload_to=get_path_name,
+    name        = models.CharField(max_length=256)
+    schedule    = models.ForeignKey('Schedule')
+    time        = models.DateTimeField()
+    local_file  = models.FileField(upload_to=get_path_name,
                                  null=True)
-    size      = models.BigIntegerField(null=True)
-    destination_name = models.CharField(max_length=256, null=True)
-    kind = models.CharField(max_length=13,
-                            choices=KIND_CHOICES,
-                            default=SCHEDULED)
-    state = models.CharField(max_length=13,
-                             choices=STATE_CHOICES,
-                             default=IDLE)
+    size        = models.BigIntegerField(null=True)
+    destination = models.CharField(max_length=256, null=True)
+    #kind = models.CharField(max_length=13,
+    #                        choices=KIND_CHOICES,
+    #                        default=SCHEDULED)
+    #state = models.CharField(max_length=13,
+    #                         choices=STATE_CHOICES,
+    #                         default=IDLE)
+    
+    local_backup_date  = models.DateTimeField(null=True)
+    remote_backup_date = models.DateTimeField(null=True)
+    
     last_error = models.TextField(null=True)
     remote_id  = models.BigIntegerField()
+    
+    @property
+    def local_completed(self):
+        return self.local_backup_date is not None
+    
+    @property
+    def remote_completed(self):
+        return self.remote_backup_date is not None
     
     #meta config
     class Meta:
@@ -70,6 +85,7 @@ class Backup(models.Model):
         
     def __unicode__(self):
         return self.name
+    
     
     def save(self, *args, **kwargs):
         self.full_clean()
@@ -148,7 +164,7 @@ class Backup(models.Model):
     def backup(self):
         print {
             'function': 'BACKUP',
-            'dest': self.destination_name,
+            'dest': self.destination,
             'pk': self.pk,
             'time': self.time,
             'state': self.state,
@@ -180,7 +196,7 @@ class Backup(models.Model):
     def send(self, web_server):
         print {
             'function': 'SEND',
-            'dest': self.destination_name,
+            'dest': self.destination,
             'pk': self.pk,
             'time': self.time,
             'state': self.state,
