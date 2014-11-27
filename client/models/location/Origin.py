@@ -19,7 +19,7 @@ class Origin(models.Model):
 
     @staticmethod
     def instance():
-        return Origin.objects.filter(pk=1) or None
+        return Origin.objects.get(pk=1) if Origin.objects.exists() else None
     
     #@staticmethod
     #def register(web_server, name):

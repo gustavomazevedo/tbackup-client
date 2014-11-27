@@ -41,7 +41,7 @@ class WebServer(models.Model):
     @staticmethod
     def instance():
         #gets a list of available WebServers, new first
-        webservers = WebServer.objects.filter(active=True).order_by('-creation_date')
+        webservers = WebServer.objects.filter(active=True).order_by('creation_date')
         if webservers.count() == 0:
             raise Exception(_('No active WebServer. Please contact administrators'))
         for ws in webservers:

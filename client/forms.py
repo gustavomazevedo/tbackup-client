@@ -4,7 +4,7 @@ from django.forms import widgets
 from django import forms
 from django.utils.translation import ugettext_lazy as _
 
-from client.models import (Origin, WebServer)
+from client.models import (Origin, WebServer, Schedule)
 
 from .constants import TIMEDELTA_CHOICES
 from .auth import HTTPTokenAuth
@@ -63,6 +63,12 @@ def clean_result(result):
 
 class OriginAddForm(forms.ModelForm):
     model = Origin
+    
+    name = forms.RegexField(max_length=80,
+                label='Nome',
+                regex=r'^[A-Za-z][A-Za-z0-9_.]*',
+                error_message=u'Somente caracteres alfanuméricos e símbolos "_" e ".". \n'
+                      u'Primeiro caractere é obrigatoriamente uma letra.')
     new_or_existing_user = forms.ChoiceField(choices=((NEW_USER, u'Novo Usuário'),(EXISTING_USER, u'Usuário Existente')))
     password1 = forms.CharField(widget=forms.PasswordInput, label=u'Senha')
     password2 = forms.CharField(widget=forms.PasswordInput, label=u'Confirmar senha', required=False)
@@ -120,7 +126,7 @@ class OriginEditForm(forms.ModelForm):
     new_password1 = forms.CharField(widget=forms.PasswordInput, label=u'Nova senha', required=False)
     new_password2 = forms.CharField(widget=forms.PasswordInput, label=u'Confirmar nova senha', required=False)
     email    = forms.EmailField()
-    
+            
     def clean_name(self):
         '''name is not updatable. If user is willing to change name,
         they must delete existing entry and create another
@@ -170,7 +176,18 @@ class OriginEditForm(forms.ModelForm):
             obj.save()
         return obj
     
+class ScheduleForm(forms.ModelForm):
+    model = Schedule
     
+    #busca no servidor remoto (via API) os destinos disponíveis
+    def __init__(self, *args, **kwargs):
+        super(ScheduleForm, self).__init__(*args, **kwargs)
+        
+        token   = HTTPTokenAuth(Origin.instance().auth_token)
+        api     = WebServer.instance().get_api(auth=token)
+        choices = [ (d['name'], d['name']) for d in api.destinations.get() ]
+        
+        self.fields['destination'] = forms.ChoiceField(choices=choices)
 
 class RegisterForm(forms.ModelForm):
     name = forms.RegexField(max_length=80,
@@ -182,37 +199,38 @@ class RegisterForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super(RegisterForm, self).__init__(*args, **kwargs)
         instance = getattr(self, 'instance', None)
-        if instance and instance().id:
+        if instance and instance.id:
             self.fields['name'].widget.attrs['disabled'] = True
     
-        def clean_name(self):
-            return self.instance().name
+    def clean_name(self):
+        return self.instance.name
     
     class Meta:
         exclude = ('pvtkey','pubkey',)
     
-class LogForm(forms.ModelForm):
-    
-    def __init__(self, *args, **kwargs):
-        super(LogForm, self).__init__(*args, **kwargs)
-        self.fields['destination'].widget.attrs['disabled'] = True
-        self.fields['date'].widget.attrs['disabled'] = True
-        self.fields['filename'].widget.attrs['disabled'] = True
-        self.fields['local_status'].widget.attrs['disabled'] = True
-        self.fields['remote_status'].widget.attrs['disabled'] = True
+#class LogForm(forms.ModelForm):
+#    
+#    def __init__(self, *args, **kwargs):
+#        super(LogForm, self).__init__(*args, **kwargs)
+#        self.fields['destination'].widget.attrs['disabled'] = True
+#        self.fields['date'].widget.attrs['disabled'] = True
+#        self.fields['filename'].widget.attrs['disabled'] = True
+#        self.fields['local_status'].widget.attrs['disabled'] = True
+#        self.fields['remote_status'].widget.attrs['disabled'] = True
         
 class ConfirmRestoreForm(forms.Form):
-    password1 = forms.PasswordInput()
-    password2 = forms.PasswordInput()
+    password1 = forms.CharField(widget=forms.PasswordInput, label=u'Senha')
+    password2 = forms.CharField(widget=forms.PasswordInput, label=u'Confirmar senha', required=False)
     
     def __init__(self, *args, **kwargs):
         super(ConfirmRestoreForm, self).__init__(*args, **kwargs)
     
     def clean(self):
-        password1 = self.cleaned_data.get('password1')
-        password2 = self.cleaned_data.get('password2')
+        username  = self.cleaned_data.get('username', None)
+        password1 = self.cleaned_data.get('password1', None)
+        password2 = self.cleaned_data.get('password2', None)
         
-        if password1 and password1 != password2:
-            raise forms.ValidationError(_("Passwords don't match"))
+        clean_passwords(passwor1, password2)
+        try_clean_existing_user(username, password1)
         
         return self.cleaned_data

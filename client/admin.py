@@ -20,7 +20,7 @@ from .models import (
   # BackupStatus,
   )
 #from .forms import ConfigForm, OriginForm
-from .forms import OriginAddForm, OriginEditForm, NEW_USER, EXISTING_USER
+from .forms import OriginAddForm, OriginEditForm, ScheduleForm, NEW_USER, EXISTING_USER
 
 class OriginAdmin(admin.ModelAdmin):
     form = OriginEditForm
@@ -65,25 +65,17 @@ class OriginAdmin(admin.ModelAdmin):
     #    return HttpResponseForbidden()
 
 class ScheduleAdmin(admin.ModelAdmin):
+    form = ScheduleForm
     
-    #def has_add_permission(self, request):
-    #    return Origin.objects.filter(pk=1).exists()
-
-    #def has_delete_permission(self, request, obj=None):
-    #    return self.origin_exists
+    #def add_view(self, request, form_url='', extra_context=None):
+    #    if request.method == GET:
+    #        Destination.update(WebServer.instance(), Origin.objects.get(pk=1).remote_id)
+    #    return super(ScheduleAdmin, self).add_view(request, form_url, extra_context)
     
-    #def has_change_permission(self, request, obj=None):
-    #    return self.origin_exists
-
-    def add_view(self, request, form_url='', extra_context=None):
-        if request.method == GET:
-            Destination.update(WebServer.instance(), Origin.objects.get(pk=1).remote_id)
-        return super(ScheduleAdmin, self).add_view(request, form_url, extra_context)
-    
-    def change_view(self, request,form_url=''):
-        if request.method == GET:
-            Destination.update(WebServer.instance(), Origin.objects.get(pk=1).remote_id)
-        return super(ScheduleAdmin, self).change_view(request,form_url)
+    #def change_view(self, request,form_url=''):
+    #    if request.method == GET:
+    #        Destination.update(WebServer.instance(), Origin.objects.get(pk=1).remote_id)
+    #    return super(ScheduleAdmin, self).change_view(request,form_url)
 
 class WebServerAdmin(admin.ModelAdmin):
     #readonly_fields = ('apikey',)
@@ -104,4 +96,4 @@ admin.site.register(Origin, OriginAdmin)
 if Origin.objects.filter(pk=1).exists():
     admin.site.register(Schedule, ScheduleAdmin)
 admin.site.register(WebServer, WebServerAdmin)
-admin.site.register([Destination, Backup, RRule])
+admin.site.register([Backup, RRule])
