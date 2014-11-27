@@ -46,7 +46,11 @@ INSTALLED_APPS = (
     'south',
     'django_tables2',
     'client',
+)
 
+TBACKUP_APPS = (
+    'south',
+    'django_tables2',
 )
 
 MIDDLEWARE_CLASSES = (

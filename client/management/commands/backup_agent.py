@@ -14,17 +14,15 @@ from django.utils                import timezone
 from django.core.management      import call_command
 from django.core.management.base import BaseCommand, make_option
 from django.db.models            import F, Q
-from client.models               import (
-                                          Origin,
-                                          WebServer,
-                                          Backup,
-                                          Schedule,
+from client.models               import ( Origin
+                                        , WebServer
+                                        , Backup
+                                        , Schedule
                                         )
 from client import functions
-
+from client.auth import HTTPTokenAuth
 
 TBACKUP_DUMP_DIR = settings.TBACKUP_DUMP_DIR
-
 
 class Command(BaseCommand):
     option_list = BaseCommand.option_list + (
@@ -66,36 +64,36 @@ class Command(BaseCommand):
                     help  ='Updates info about WebServer and Destination'
         ),
     )
-                
+
     def handle(self, *args, **options):
-        #try: 
+        #try:
             #Don't accept commands if origin is not registered
             if not Origin.objects.filter(pk=1).exists():
                 return
-        
+
             if options.get('trigger_backups', False):
                 self.trigger_backups()
-                
+
         #except Exception, e:
         #    self.stderr.write('%s: %s' % (e.__class__.__name__, e))
-        
+
 #    def delete_old_backups(self):
 #        fourteen_days_ago = datetime.now() - datetime.timedelta(days=14)
 #        backuphistory = Log.objects.filter(
 #            local_status=True,
 #            remote_status=True,
 #            dump_date__lt=fourteen_days_ago)
-#        
+#
 #        for backup in backuphistory:
 #            os.remove(os.path.join(TBACKUP_DUMP_DIR, backup.filename))
 #            backup.local_status = False
 #            backup.save()
-    
+
     def all_missing_tasks(self):
         self.schedule_missing_jobs()
         self.retry_failed_backups()
         self.send_unsent_backups()
-        
+
     def schedule_missing_jobs(self):
         """
         Schedule missing future jobs (in case of failure in the past)
@@ -113,7 +111,7 @@ class Command(BaseCommand):
         for u in unscheduled:
             Backup.objects.create(schedule=u,
                                   time=u.next_run())
-         
+
     def send_unsent_backups(self):
         """
         Send unsent backups to WebServer
@@ -134,9 +132,9 @@ class Command(BaseCommand):
                                         time__lte=dt)
         for b in backups:
             b.backup()
-    
-    
-        
+
+
+
     def trigger_backups(self):
         """
         This task will trigger backups to run if it's the scheduled date and time
@@ -149,28 +147,38 @@ class Command(BaseCommand):
         schedules = self.get_schedules_to_run(now)
         self.stdout.write(str(len(schedules)))
         if len(schedules) == 0: return
-        
-        ws = WebServer.instance()
-        o = Origin.instance()
-        api = ws.get_api(auth=HTTPTokenAuth(o.auth_token))
-        
+
+        if not WebServer.objects.exists():
+            raise Exception(_('WebServer does not exist'))
+
+        if not Origin.objects.exists():
+            raise Exception(_('Origin does not exist'))
+
+        token = HTTPTokenAuth(Origin.instance().auth_token)
+        api = WebServer.instance().get_api(auth=token)
+
         for s in schedules:
             #get or create job
             backup_job, created = Backup.objects.get_or_create(schedule=s,
-                                                           time=now)
-            self.stdout.write(str(created))
+                                                               time=now)
+            self.stdout.write('Created? %s' % str(created))
             #backup
             filename, contents = backup_job.backup()
             backup = {
                 'name': filename,
                 'destination': backup_job.destination.name,
-                'date': timezone.now(),
+                'date': now,
             }
-            api.backups.post(backup, files={'file': contents})
-            
+
+            #post to server
+            result = api.backups.post(backup, files={'file': contents})
+
+            if not 'id' in result:
+                backup.state = Backup.ERROR_SENDING
+
             #send to WebServer
-            backup_job.send(WebServer.instance())
-            
+            #backup_job.send(WebServer.instance())
+
     def get_schedules_to_run(self, t):
         """
         Fetches all active schedules to run now
@@ -179,10 +187,13 @@ class Command(BaseCommand):
         #                                    schedule_time__hour=t.hour,
         #                                    schedule_time__minute=t.minute)
         #return [s for s in schedules if s.trigger(t)]
+        min_t = t - timedelta(seconds=30)
+        max_t = t + timedelta(seconds=30)
         schedules = Schedule.objects.filter(active=True,
-                                            schedule_time__hour=t.hour)
+                                            schedule_time__gt=min_t,
+                                            schedule_time__lt=max_t)
         print schedules
-        schedules = Schedule.objects.all()
+        #schedules = Schedule.objects.all()
         for s in schedules:
             print t, s.schedule_time
             print t.hour, s.schedule_time.hour

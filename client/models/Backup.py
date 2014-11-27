@@ -71,6 +71,25 @@ class Backup(models.Model):
     def __unicode__(self):
         return self.name
     
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super(Backup, self).save(*args, **kwargs)
+    
+    def clean(self):
+        super(Backup, self).clean()
+        
+        #if backup is already created, ignores the rest of the method
+        if self.created:
+            return
+        
+        #logs current origin name from Origin
+        self.origin = Origin.instance().name
+        #logs current destination name from Schedule:
+        self.destination = self.schedule.destination
+        #backs up data
+        if self.file is None:
+            
+    
     def remote_url(self):
         from django.core.urlresolvers import reverse
         from client import views
@@ -93,6 +112,8 @@ class Backup(models.Model):
         return ''
     restore_link.short_description = 'Restaurar'
     restore_link.allow_tags = True
+    
+    
     
     def advance_state(self):
         print 'from %s ' % self.state
@@ -192,26 +213,7 @@ class Backup(models.Model):
         origin = Origin.objects.get(pk=1)
         filename = origin.name + '_' + self.date
         
-        app_filters = {
-            'django': self.schedule.backup_system,
-            'client': self.schedule.backup_tbackup_config
-        }
-        
-        installed_apps = settings.INSTALLED_APPS
-        appsgen = (a for a in installed_apps)
-        for packname, will_backup in app_filters:
-            if not will_backup:
-                appsgen = (a for a in appsgen if not a.startswith(packname))
-        apps = list(appsgen)
-        
-        #apps = [a for a in installed_apps
-        #        if (not (a.startswith('django') or a.startswith('tbackup')))]
-        
-        
-        #print 'client: apps'
-        #print apps       
-        #print 'FILENAME'
-        #print filename
+        apps = settings.TBACKUP_APPS
         
         f = open(os.path.join(TBACKUP_DUMP_DIR,filename), "wb")
         call_command('dumpdata', *apps, stdout=f)
