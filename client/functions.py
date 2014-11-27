@@ -46,7 +46,7 @@ def authenticated(fulldata, apikey):
     return signature == sign(data, apikey)
     
 def sign(data, apikey=None):
-    sha1 = SHA.new()
+    sha1 = SHA()
     if not data:
         sha1.update(u"None")
     else:
@@ -74,3 +74,9 @@ def remove_key(d, key):
   
 def normalize_time(dt):
   return dt - timedelta(seconds=dt.second) - timedelta(microseconds=dt.microsecond)
+
+
+def to_hyperlink(hyperlink, display_text=None, attrs=None):
+  txt_attrs = ''.join([' {}="{}"'.format(k,v) for k,v in attrs.iteritems()]) if attrs else ''
+  txt_display = display_text if display_text else hyperlink
+  return '<a href="{}"{}>{}</a>'.format(hyperlink, txt_attrs, txt_display)

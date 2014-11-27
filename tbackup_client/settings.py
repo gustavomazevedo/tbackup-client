@@ -44,7 +44,13 @@ INSTALLED_APPS = (
     'django.contrib.staticfiles',
     'django_extensions',
     'south',
+    'django_tables2',
     'client',
+)
+
+TBACKUP_APPS = (
+    'south',
+    'django_tables2',
 )
 
 MIDDLEWARE_CLASSES = (
@@ -54,6 +60,16 @@ MIDDLEWARE_CLASSES = (
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+)
+
+TEMPLATE_CONTEXT_PROCESSORS = (
+    'django.contrib.auth.context_processors.auth',
+    'django.core.context_processors.request',
+    'django.core.context_processors.static',
+    'django.core.context_processors.media',
+    'django.core.context_processors.i18n',
+    'django.contrib.messages.context_processors.messages',
+    'django.core.context_processors.debug',
 )
 
 ROOT_URLCONF = 'tbackup_client.urls'
@@ -74,7 +90,8 @@ WSGI_APPLICATION = 'tbackup_client.wsgi.application'
 # Internationalization
 # https://docs.djangoproject.com/en/1.6/topics/i18n/
 
-LANGUAGE_CODE = 'pt-br'
+#LANGUAGE_CODE = 'pt-br'
+LANGUAGE_CODE = 'en-us'
 
 TIME_ZONE = 'America/Sao_Paulo'
 

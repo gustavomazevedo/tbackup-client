@@ -36,7 +36,7 @@ class RuleCase(TestCase):
         self.now = timezone.now()
         self.now -= timedelta(seconds=self.now.second) + timedelta(microseconds=self.now.microsecond)
         params = {
-            'schedule_time': self.now + timedelta(hours=1),
+            'initial_time': self.now + timedelta(hours=1),
             'rule': self.daily_rule,
         }
         self.schedule = Schedule(**params)
@@ -47,33 +47,33 @@ class RuleCase(TestCase):
         rule = RRule.objects.get(name=u'diário')
         self.assertEqual(rule, self.daily_rule)
         
-    def test_schedule_time(self):
-        self.assertEqual(self.schedule.schedule_time, self.now + timedelta(hours=1))
+    def test_initial_time(self):
+        self.assertEqual(self.schedule.initial_time, self.now + timedelta(hours=1))
     
     def test_schedule_filter_by_time(self):
-        print self.schedule.schedule_time
-        print (self.schedule.schedule_time.hour, self.schedule.schedule_time.minute)
+        print self.schedule.initial_time
+        print (self.schedule.initial_time.hour, self.schedule.initial_time.minute)
         ss = Schedule.objects.all()
         for s in ss:
-            print s.schedule_time
-            print (s.schedule_time.hour, s.schedule_time.minute)
-            print (s.schedule_time.hour == self.schedule.schedule_time.hour and
-                  s.schedule_time.minute == self.schedule.schedule_time.minute)
-            print s.schedule_time == self.schedule.schedule_time      
+            print s.initial_time
+            print (s.initial_time.hour, s.initial_time.minute)
+            print (s.initial_time.hour == self.schedule.initial_time.hour and
+                  s.initial_time.minute == self.schedule.initial_time.minute)
+            print s.initial_time == self.schedule.initial_time      
 
-        #schedules = Schedule.objects.filter(schedule_time__hour=self.schedule.schedule_time.hour,
-        #                                   schedule_time__minute=self.schedule.schedule_time.minute)
-        schedules = Schedule.objects.filter(schedule_time=self.schedule.schedule_time)
+        #schedules = Schedule.objects.filter(initial_time__hour=self.schedule.initial_time.hour,
+        #                                   initial_time__minute=self.schedule.initial_time.minute)
+        schedules = Schedule.objects.filter(initial_time=self.schedule.initial_time)
         self.assertIn(self.schedule, schedules)
     
-    def test_next_run(self):
+    def test_next_runtime(self):
         time = self.now + timedelta(hours=2)
-        self.assertEqual(self.schedule.next_after(time), self.now + timedelta(days=1, hours=1))
+        self.assertEqual(self.schedule.next_runtime_after(time), self.now + timedelta(days=1, hours=1))
     
     
-    def test_trigger(self):
+    def test_is_runtime(self):
         time = self.now + timedelta(hours=1)
-        self.assertTrue(self.schedule.trigger(time))
+        self.assertTrue(self.schedule.is_runtime(time))
     
 
 class DestinationCase(TestCase):
@@ -99,7 +99,7 @@ class DestinationCase(TestCase):
     #    Destination.update()
     #    Origin.register()
     #    
-    #    WebServer.get().backup(
+    #    WebServer.instance().backup(
     #        {
     #            ''
     #        }
