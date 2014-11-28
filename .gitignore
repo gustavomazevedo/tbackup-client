@@ -56,3 +56,4 @@ docs/_build/
 #Local Database
 *.sqlite3
 .idea
+default_auth.py
