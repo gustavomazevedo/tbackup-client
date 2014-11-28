@@ -54,8 +54,9 @@ class OriginAdmin(admin.ModelAdmin):
             })
         else:
             ws = WebServer.instance()
-            messages.add_message(request, messages.SUCCESS, u'%(new_or_existing)s %(name)s foi registrado no servidor %(server_name)s (%(server_url)s) com sucesso' % {
-                'new_or_existing': u'Novo usuário' if form.cleaned_data['new_or_existing_user'] == NEW_USER else 'Usuário existente',
+            messages.add_message(request, messages.SUCCESS, u'%(new_or_existing)s %(name)s foi %(action)s servidor %(server_name)s (%(server_url)s) com sucesso' % {
+                'new_or_existing': u'Novo usuário' if form.cleaned_data['new_or_existing_user'] == NEW_USER else u'Usuário existente',
+                'action': u'registrado no' if form.cleaned_data['new_or_existing_user'] == NEW_USER else u'recuperado do',
                 'name': obj.name,
                 'server_name': ws.name,
                 'server_url': ws.url
