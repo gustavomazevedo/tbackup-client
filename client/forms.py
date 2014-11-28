@@ -64,12 +64,12 @@ def clean_result(result):
 class OriginAddForm(forms.ModelForm):
     model = Origin
     
+    new_or_existing_user = forms.ChoiceField(choices=((NEW_USER, u'Novo Usuário'),(EXISTING_USER, u'Usuário Existente')))
     name = forms.RegexField(max_length=80,
                 label='Nome',
                 regex=r'^[A-Za-z][A-Za-z0-9_.]*',
                 error_message=u'Somente caracteres alfanuméricos e símbolos "_" e ".". \n'
                       u'Primeiro caractere é obrigatoriamente uma letra.')
-    new_or_existing_user = forms.ChoiceField(choices=((NEW_USER, u'Novo Usuário'),(EXISTING_USER, u'Usuário Existente')))
     password1 = forms.CharField(widget=forms.PasswordInput, label=u'Senha')
     password2 = forms.CharField(widget=forms.PasswordInput, label=u'Confirmar senha', required=False)
     email    = forms.EmailField(required=False)
@@ -118,9 +118,14 @@ class OriginAddForm(forms.ModelForm):
             obj.save()
         return obj
 
+    class Media:
+        js = ('js/origin_add_form.js',)
+    class Meta:
+        fields = ('new_or_existing_user', 'name', 'email', 'password1', 'password2')
 
 class OriginEditForm(forms.ModelForm):
     model = Origin
+    
     password = forms.CharField(widget=forms.PasswordInput, label=u'Senha atual')
     change_password = forms.BooleanField(label='Modificar senha', required=False)
     new_password1 = forms.CharField(widget=forms.PasswordInput, label=u'Nova senha', required=False)
