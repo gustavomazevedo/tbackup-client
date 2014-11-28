@@ -23,14 +23,15 @@ from .models import (
 from .forms import OriginAddForm, OriginEditForm, ScheduleForm, NEW_USER, EXISTING_USER
 
 class OriginAdmin(admin.ModelAdmin):
-    form = OriginEditForm
+    #form = OriginEditForm
     list_display = ('name', 'email', 'auth_token', 'remote_id')
     
     def get_form(self, request, obj=None, **kwargs):
         if obj is None:
-            return MyAddForm
+            self.form = OriginAddForm
         else:
-            return super(OriginAdmin, self).get_form(request, obj, **kwargs)
+            self.form = OriginEditForm
+        return super(OriginAdmin, self).get_form(request, obj, **kwargs)
 
     def has_add_permission(self, request):
         return request.user.is_superuser and not Origin.objects.filter(pk=1).exists()
