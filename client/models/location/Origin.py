@@ -11,8 +11,8 @@ class Origin(models.Model):
 
     class Meta:
         app_label = 'client'
-        verbose_name = u"origem"
-        verbose_name_plural = u"origem"
+        verbose_name = u"cliente"
+        verbose_name_plural = u"cliente"
 
     def __unicode__(self):
         return self.name
