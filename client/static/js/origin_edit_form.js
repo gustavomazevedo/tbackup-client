@@ -1,9 +1,12 @@
 django.jQuery(document).ready(function($) {
     
     $('#id_name').prop('disabled', true);
+    
     $('#id_change_password').prop('checked',false);
     $('.field-new_password1').hide()
     $('.field-new_password2').hide()
+    $('input[name=_continue]').remove()
+    $('input[name=_save]').val('Atualizar')
     
     $('#id_change_password').change(function() {
         if (this.checked) {
