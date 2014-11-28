@@ -181,6 +181,12 @@ class OriginEditForm(forms.ModelForm):
             obj.save()
         return obj
     
+    class Media:
+        js = ('js/origin_edit_form.js',)
+    class Meta:
+        fields = ('name', 'email', 'password', 'change_password', 'new_password1', 'new_password2')
+
+
 class ScheduleForm(forms.ModelForm):
     model = Schedule
     
