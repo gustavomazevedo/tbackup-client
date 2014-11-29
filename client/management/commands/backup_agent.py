@@ -30,7 +30,10 @@ TBACKUP_DUMP_DIR = settings.TBACKUP_DUMP_DIR
 DATETIME_FORMAT = ''
 
 def get_project_dump_file():
-    apps = settings.TBACKUP_APPS
+    #don't backup 'client' app. Upon restore, all backup logs between
+    #restored data datetime and current datetime would be lost.
+    apps = [a for a in settings.TBACKUP_APPS if a != 'client']
+    
     contents = StringIO()
     contents_gzipped = StringIO()
     
