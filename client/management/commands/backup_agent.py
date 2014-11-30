@@ -30,33 +30,17 @@ TBACKUP_DUMP_DIR = settings.TBACKUP_DUMP_DIR
 DATETIME_FORMAT = ''
 
 def get_project_dump_file():
-    #don't backup 'client' app. Upon restore, all backup logs between
-    #restored data datetime and current datetime would be lost.
-    apps = [a for a in settings.TBACKUP_APPS if a != 'client']
-    
+    apps = [a.replace('django.contrib.','') if a.startswith('django.contrib.')
+            else a
+            for a in settings.TBACKUP_APPS]
     contents = StringIO()
     contents_gzipped = StringIO()
-    
     call_command('dumpdata', *apps, stdout=contents)
     contents.seek(0)
     gzip_file = gzip.GzipFile(fileobj=contents_gzipped, mode='w')
     gzip_file.write(contents.read())
     gzip_file.close()
-    
-    #newfilename = filename + '.db.gz'
-    #    
-    #f_in  = open(os.path.join(TBACKUP_DUMP_DIR,filename), 'rb')
-    #f_out = gzip.open(os.path.join(TBACKUP_DUMP_DIR,newfilename), 'wb',9)
-    #
-    #f_out.writelines(f_in)
-    #f_out.close()
-    #f_in.close()
-    #os.remove(os.path.join(TBACKUP_DUMP_DIR,filename))
-    #
-    #log.filename = newfilename
-    #log.local_status = True
-    
-    contents_gzipped.seek(0, 2)
+    contents_gzipped.seek(0)
     return contents_gzipped
     
 
@@ -195,9 +179,6 @@ class Command(BaseCommand):
         }
         
         file_contents = get_project_dump_file()
-        
-        assert file_contents is not None
-        assert isinstance(file_contents, StringIO)
         
         for s in schedules:
             #get or create job
