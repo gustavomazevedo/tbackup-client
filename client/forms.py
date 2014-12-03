@@ -64,7 +64,9 @@ def clean_result(result):
 class OriginAddForm(forms.ModelForm):
     model = Origin
     
-    new_or_existing_user = forms.ChoiceField(choices=((NEW_USER, u'Novo Usuário'),(EXISTING_USER, u'Usuário Existente')))
+    new_or_existing_user = forms.ChoiceField(
+                            label=u'Usuário novo ou existente',
+                            choices=((NEW_USER, u'Novo Usuário'),(EXISTING_USER, u'Usuário Existente')))
     name = forms.RegexField(max_length=80,
                 label='Nome',
                 regex=r'^[A-Za-z][A-Za-z0-9_.]*',
@@ -200,35 +202,7 @@ class ScheduleForm(forms.ModelForm):
         
         self.fields['destination'] = forms.ChoiceField(choices=choices)
 
-class RegisterForm(forms.ModelForm):
-    name = forms.RegexField(max_length=80,
-                label='Nome',
-                regex=r'^[A-Za-z][A-Za-z0-9_.]*',
-                error_message=u'Somente caracteres alfanuméricos e símbolos "_" e ".". \n'
-                      u'Primeiro caractere é obrigatoriamente uma letra.')
-        
-    def __init__(self, *args, **kwargs):
-        super(RegisterForm, self).__init__(*args, **kwargs)
-        instance = getattr(self, 'instance', None)
-        if instance and instance.id:
-            self.fields['name'].widget.attrs['disabled'] = True
-    
-    def clean_name(self):
-        return self.instance.name
-    
-    class Meta:
-        exclude = ('pvtkey','pubkey',)
-    
-#class LogForm(forms.ModelForm):
-#    
-#    def __init__(self, *args, **kwargs):
-#        super(LogForm, self).__init__(*args, **kwargs)
-#        self.fields['destination'].widget.attrs['disabled'] = True
-#        self.fields['date'].widget.attrs['disabled'] = True
-#        self.fields['filename'].widget.attrs['disabled'] = True
-#        self.fields['local_status'].widget.attrs['disabled'] = True
-#        self.fields['remote_status'].widget.attrs['disabled'] = True
-        
+
 class ConfirmRestoreForm(forms.Form):
     password1 = forms.CharField(widget=forms.PasswordInput, label=u'Senha')
     password2 = forms.CharField(widget=forms.PasswordInput, label=u'Confirmar senha', required=False)

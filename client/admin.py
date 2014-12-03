@@ -95,7 +95,6 @@ class WebServerAdmin(admin.ModelAdmin):
         return WebServer.objects.filter(pk=1).exists()
     
 admin.site.register(Origin, OriginAdmin)
-if Origin.objects.filter(pk=1).exists():
-    admin.site.register(Schedule, ScheduleAdmin)
+admin.site.register(Schedule, ScheduleAdmin)
 admin.site.register(WebServer, WebServerAdmin)
-admin.site.register([Backup, RRule])
+

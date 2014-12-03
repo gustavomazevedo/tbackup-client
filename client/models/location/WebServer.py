@@ -35,7 +35,8 @@ class WebServer(models.Model):
 
     class Meta:
         app_label = 'client'
-        verbose_name_plural = u"web server"
+        verbose_name = u"servidor"
+        verbose_name_plural = u"servidor"
         get_latest_by = 'creation_date'
 
     @staticmethod

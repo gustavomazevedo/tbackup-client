@@ -10,17 +10,18 @@ from client.functions import normalize_time
 from django.utils.translation import ugettext_lazy as _
 
 class Schedule(models.Model):    
-    destination  = models.CharField(max_length=1024)
-    initial_time = models.DateTimeField(verbose_name=_("initial datetime"), default=timezone.now())
+    destination  = models.CharField(max_length=1024, verbose_name=u'destino')
+    initial_time = models.DateTimeField(verbose_name='iniciar em', default=timezone.now())
     rule         = models.ForeignKey('RRule',
                                       null=True,
                                       blank=True,
-                                      verbose_name=_("recurrence"),
-                                      help_text=_("Selecione '----' para um evento nao recorrente."))
-    active       = models.BooleanField(default=True, verbose_name=_("active"))
+                                      verbose_name='repetir',
+                                      help_text=u'Selecione "----" para um evento não recorrente')
+    active       = models.BooleanField(default=True, verbose_name=u'ativo')
     
     class Meta:
         app_label = 'client'
+        verbose_name = u'agendamento'
     
     def __unicode__(self):
         return u"%(destination)s%(rule)s@ %(initial_time)s" % {
