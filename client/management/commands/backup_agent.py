@@ -27,7 +27,6 @@ from client import functions
 from client.auth import HTTPTokenAuth
 
 TBACKUP_DUMP_DIR = settings.TBACKUP_DUMP_DIR
-DATETIME_FORMAT = ''
 
 def get_project_dump_file():
     apps = [a.replace('django.contrib.','') if a.startswith('django.contrib.')
@@ -157,7 +156,7 @@ class Command(BaseCommand):
         #current time
         now = functions.normalize_time(timezone.now())
         now_str = datetime.strftime(now, DATETIME_FORMAT)
-        formatted_now = now_str[:now_str.rfind('.')]
+        #formatted_now = now_str[:now_str.rfind('.')]
         
         #get schedules to run now
         schedules = self.get_schedules_to_run(now)
@@ -175,7 +174,7 @@ class Command(BaseCommand):
         
         filename = '%(username)s_%(datetime)s.gz' % {
             'username': username,
-            'datetime': formatted_now
+            'datetime': now_str
         }
         
         file_contents = get_project_dump_file()
