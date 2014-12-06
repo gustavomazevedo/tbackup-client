@@ -1,0 +1,33 @@
+{% extends "base_site.html" %}
+{% load i18n admin_urls %}
+
+{% block extrahead %}
+    <script type="text/javascript" src="/static/admin/js/jquery.js"></script>
+    <script type="text/javascript" src="/static/admin/js/jquery.init.js"></script>
+    {{form.media}}
+{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+<a href="{% url 'client:backups' %}">{% trans 'Backups' %}</a>
+&rsaquo; {% trans 'Restaurar' %}
+</div>
+{% endblock %}
+
+{% block content %}
+{% if perms_lacking or protected %}
+    <p>{% blocktrans with escaped_object=object %}Não há permissões suficientes para restaurar o {{ object_name }} '{{ escaped_object }}'{% endblocktrans %}</p>
+{% else %}
+    <p>{% blocktrans with escaped_object=object %}Tem certeza que deseja restaurar o backup "{{ escaped_object }}"?</p>
+    <p>Todos os dados posteriores serão removidos do sistema.{% endblocktrans %}</p>
+    <br />
+    <form action="" method="post">{% csrf_token %}
+    <br />
+    {{ form.as_p }}
+    <div>
+        <input type="hidden" name="post" value="yes" />
+        <input type="submit" value="{% trans "Sim, tenho certeza" %}" />
+    </div>
+    </form>
+{% endif %}
+{% endblock %}
