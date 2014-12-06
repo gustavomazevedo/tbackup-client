@@ -196,26 +196,33 @@ class ScheduleForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super(ScheduleForm, self).__init__(*args, **kwargs)
         
-        token   = HTTPTokenAuth(Origin.instance().auth_token)
-        api     = WebServer.instance().get_api(auth=token)
+        token   = Origin.instance().auth_token
+        api     = WebServer.instance().get_api(token=token)
         choices = [ (d['name'], d['name']) for d in api.destinations.get() ]
         
         self.fields['destination'] = forms.ChoiceField(choices=choices)
 
 
 class ConfirmRestoreForm(forms.Form):
-    password1 = forms.CharField(widget=forms.PasswordInput, label=u'Senha')
-    password2 = forms.CharField(widget=forms.PasswordInput, label=u'Confirmar senha', required=False)
+    username = forms.CharField(label=u'Usuário')
+    password = forms.CharField(widget=forms.PasswordInput, label=u'Senha')
     
     def __init__(self, *args, **kwargs):
         super(ConfirmRestoreForm, self).__init__(*args, **kwargs)
-    
+        origin = Origin.instance()
+        if origin:
+            self.fields['username'].initial = origin.name
+            
     def clean(self):
-        username  = self.cleaned_data.get('username', None)
-        password1 = self.cleaned_data.get('password1', None)
-        password2 = self.cleaned_data.get('password2', None)
+        username = self.cleaned_data.get('username', None)
+        password = self.cleaned_data.get('password', None)
         
-        clean_passwords(passwor1, password2)
-        try_clean_existing_user(username, password1)
+        print (username, password)
+        
+        try_clean_existing_user(username, password)
         
         return self.cleaned_data
+    
+    class Media:
+        js = ('js/restore_confirmation_form.js',)
+    
