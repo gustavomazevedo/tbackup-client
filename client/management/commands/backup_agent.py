@@ -10,9 +10,8 @@ from datetime    import datetime, timedelta
 from Crypto.Hash import SHA
 from StringIO import StringIO
 
-from client.conf.settings import DATETIME_FORMAT, settings
+from client.conf.settings import TBACKUP_DATETIME_FORMAT, settings
 from django.utils import timezone
-from django.core.files.base import ContentFile
 from django.core.management import call_command
 from django.core.management.base import BaseCommand, make_option
 from django.db.models import F, Q
@@ -22,25 +21,10 @@ from client.models import (
     Backup,
     Schedule,
 )
-
+from client.handlers import DataHandler
 from client import functions
-from client.auth import HTTPTokenAuth
 
 TBACKUP_DUMP_DIR = settings.TBACKUP_DUMP_DIR
-
-def get_project_dump_file():
-    apps = [a.replace('django.contrib.','') if a.startswith('django.contrib.')
-            else a
-            for a in settings.TBACKUP_APPS]
-    contents = StringIO()
-    contents_gzipped = StringIO()
-    call_command('dumpdata', *apps, stdout=contents)
-    contents.seek(0)
-    gzip_file = gzip.GzipFile(fileobj=contents_gzipped, mode='w')
-    gzip_file.write(contents.read())
-    gzip_file.close()
-    contents_gzipped.seek(0)
-    return contents_gzipped
     
 
 class Command(BaseCommand):
@@ -153,69 +137,13 @@ class Command(BaseCommand):
         if not Origin.objects.exists():
             raise Exception(_('Origin does not exist'))
         
-        #current time
-        now = functions.normalize_time(timezone.now())
-        now_str = datetime.strftime(now, DATETIME_FORMAT)
-        #formatted_now = now_str[:now_str.rfind('.')]
+        handler = DataHandler(origin=Origin.instance(),webserver=WebServer.instance())
+        if len(handler.schedules) == 0: return
         
-        #get schedules to run now
-        schedules = self.get_schedules_to_run(now)
-        
-        self.stdout.write(str(timezone.make_naive(timezone.now(), pytz.timezone(settings.TIME_ZONE))))
-        self.stdout.write(str(timezone.make_naive(now, pytz.timezone(settings.TIME_ZONE))))
-        self.stdout.write(str(len(schedules)))
-        
-        if len(schedules) == 0: return
-
-        origin = Origin.instance()
-        username = origin.name
-        token = HTTPTokenAuth(origin.auth_token)
-        api = WebServer.instance().get_api(auth=token)
-        
-        filename = '%(username)s_%(datetime)s.gz' % {
-            'username': username,
-            'datetime': now_str
-        }
-        
-        file_contents = get_project_dump_file()
-        
-        for s in schedules:
-            #get or create job
-            backup_obj = Backup(name=filename, schedule=s)
-            backup_obj.full_clean()
-            backup_obj.save()
-            backup_obj.file.save(filename, ContentFile(file_contents))
+        handler.cache_dumpdata()
+        for s in handler.schedules:
+            handler.backup(schedule=s)
             
-            remote_backup_info = {
-                'name': filename,
-                'destination': backup_obj.destination,
-                'date': now,
-            }
-            
-            file_contents.seek(0)
-            #post to server
-            try:
-                result = api.backups.post(remote_backup_info, files={'file': file_contents})
-                if 'id' in result:
-                    backup_obj.remote_backup_date = timezone.now()
-                    backup_obj.save()
-                else:
-                    raise Exception(_('Server response not recognized: %s' % result))
-            except Exception as e:
-                raise Exception(_('Error sending backup to server: %s' % e))
-
-    def get_schedules_to_run(self, t):
-        """
-        Fetches all active jobs scheduled to run now
-        """
-        #django converts UTC to localtime in filters, so we need to
-        #convert our t to a local_t, naive datetime object
-        #to get filter to work :(
-        local_t = timezone.make_naive(t, pytz.timezone(settings.TIME_ZONE))
-        schedules = Schedule.objects.filter(active=True,
-                                            initial_time__hour=local_t.hour,
-                                            initial_time__minute=local_t.minute)
-        return [s for s in schedules if s.is_runtime(t)]
         
 #def fill_data():
 #    from dummy_app.models import DummyData
