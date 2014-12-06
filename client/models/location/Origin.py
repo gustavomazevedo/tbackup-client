@@ -21,10 +21,3 @@ class Origin(models.Model):
     def instance():
         return Origin.objects.get(pk=1) if Origin.objects.exists() else None
     
-    #@staticmethod
-    #def register(web_server, name):
-    #    return web_server.register(name)
-    #
-    #@staticmethod
-    #def check_availability(web_server, name):
-    #    return web_server.check_availability(name)

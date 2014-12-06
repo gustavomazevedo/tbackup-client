@@ -15,10 +15,11 @@ from client.conf.settings import (
     #WEBSERVER_API_VERSION
 )
 from client.functions import json_request
+from client.auth import HTTPTokenAuth
 
-DEFAULT_TOKEN_AUTH = None
+DEFAULT_TOKEN = None
 try:
-    from client.default_auth import DEFAULT_TOKEN_AUTH
+    from client.default_auth import DEFAULT_TOKEN
 except ImportError:
     pass
 
@@ -95,86 +96,24 @@ class WebServer(models.Model):
         """
         Checks if WebServer is online
         """
-        hostname = self.url.replace('http://', '').rpartition(':')[0]
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        hostname = self.url.replace('http://', '').rpartition(':')[0].rpartition('/')[0]
         answer = False
-        try:
-            s.connect((hostname,7000))
-            #s.connect((hostname,443))
-            answer = True
-        except:
+        for port in (443,80, 7000, 8000):
             try:
-                s.connect((hostname,80))
+                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                s.connect((hostname,port))
                 answer = True
+                break
             except:
-                answer = False
-        finally:
-            s.close()
-            
+                s.close()
+                continue
+        s.close()
+        
         return answer
     
     
-    def get_api(self, auth=None):
-        _auth = auth if auth else DEFAULT_TOKEN_AUTH
+    def get_api(self, token=None, auth=None):
+        _auth = auth if auth \
+                else HTTPTokenAuth(token) if token \
+                else HTTPTokenAuth(DEFAULT_TOKEN)
         return slumber.API(self.url, auth=_auth)
-    
-    #def update(self, url, api_url, api_version, apikey, active):
-    #    self.url = url
-    #    self.api_url = api_url
-    #    self.api_version = api_version
-    #    self.apikey = apikey
-    #    self.active = active
-    
-    def check_availability(self, origin_name):
-        from rest_framework.test import APIClient
-        client = APIClient('http://localhost:7000')
-        
-        #import ipdb; ipdb.set_trace()
-        return self.remote_action(view_name= u"origin_available",
-                                  method   = GET,
-                                  data     = {u"origin": origin_name})
-    
-    def register(self, origin_name):
-        #import ipdb; ipdb.set_trace()
-        return self.remote_action(view_name= u"register_origin",
-                                  method   = POST,
-                                  data     = {u"origin": origin_name})
-    
-    def destinations(self, origin_id):
-        return self.remote_action(view_name= u"destinations",
-                                  method   = GET,
-                                  apikey   = self.apikey,
-                                  origin_id= origin_id)
-    
-    def backup(self, origin_id, data, files):
-        return self.remote_action(view_name= u"backup",
-                                  method   = POST,
-                                  data     = data,
-                                  apikey   = self.apikey,
-                                  origin_id= origin_id,
-                                  files    = files)
-    
-    def restore(self, origin_id, data):
-        return self.remote_action(view_name= u"restore",
-                                  method   = POST,
-                                  data     = data,
-                                  apikey   = self.apikey,
-                                  origin_id= origin_id)
-    
-    def remote_action(self, view_name, method=None, data=None,
-                      apikey=None,
-                      origin_id=None, files=None):
-        return json_request(
-            url   =u"%(address)s/server/%(id)s%(view)s/" %
-                   {
-                     'address': self.url,
-                     'id'     : u"%i/" % origin_id if origin_id else u"",
-                     'view'   : view_name
-                   },
-            method=method,
-            data  =data,
-            apikey=apikey,
-            files =files
-        )
-    
-    

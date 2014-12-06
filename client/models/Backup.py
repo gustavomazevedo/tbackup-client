@@ -6,17 +6,19 @@ from datetime     import datetime
 from django.utils import timezone
 
 from django.core.urlresolvers import reverse
-from client.conf.settings import DATETIME_FORMAT, settings
+from client.conf.settings import TBACKUP_DATETIME_FORMAT, settings
 from django.utils.html import format_html
-
+from django.core.files.base import ContentFile
+            
+            
 from client import functions
 
-from client.models.location import Origin
+from client.models.location import Origin, WebServer
 
 import os.path
 
 def get_path_name(instance, filename):
-    return os.path.join('.', instance.schedule.destination, filename)
+    return os.path.join('.', instance.destination, filename)
 
 class Backup(models.Model):
     #enum for states
@@ -57,7 +59,7 @@ class Backup(models.Model):
     name = models.CharField(max_length=256)
     file = models.FileField(upload_to=get_path_name, null=True, blank=True)
     
-    schedule    = models.ForeignKey('Schedule')
+    schedule    = models.ForeignKey('Schedule', null=True, blank=True)
     origin      = models.CharField(max_length=256, null=True, blank=True)
     destination = models.CharField(max_length=256, null=True, blank=True)
     
@@ -87,6 +89,10 @@ class Backup(models.Model):
     def remote_completed(self):
         return self.remote_backup_date is not None
     
+    @property
+    def restore(self):
+        return 'Restaurar'
+    
     #meta config
     class Meta:
         #app_label required when scathering models in multiple files
@@ -105,7 +111,8 @@ class Backup(models.Model):
         #logs current origin name from Origin
         self.origin = Origin.instance().name
         #logs current destination name from Schedule:
-        self.destination = self.schedule.destination
+        if self.schedule:
+            self.destination = self.schedule.destination
         #backs up data
         #if self.file is None:
         #    self.file = self.dumpdata_apps()
@@ -164,131 +171,5 @@ class Backup(models.Model):
                     'value'    : exc_value,
                     'traceback': exc_traceback,
                   }
-    
-    def backup(self):
-        print {
-            'function': 'BACKUP',
-            'dest': self.destination,
-            'pk': self.pk,
-        #    'time': self.time,
-        #    'state': self.state,
-            'schedule': self.schedule,
-            'error': self.last_error,
-        }
-        #if self.ERROR_RUNNING:
-        #    self.state = self.IDLE
-        #if self.state != self.IDLE:
-        #    #raise Exception('State: %s. Cannot run local backup.' % self.state)
-        #    return
-        #self.advance_state()
-        try:
-            self.local_backup()
-        #    self.advance_state()
-        except:
-            import sys
-            self.update_error(sys.exc_info())
-        #    self.state = self.ERROR_RUNNING
-        
-        #schedule next backup if there's a recurrence rule    
-        next_runtime = self.schedule.next_runtime()
-        if next_runtime is not None:
-            Backup.objects.create(schedule=self.schedule,
-                                  time=next_runtime)
-        self.save()
-        
-        
-    def send(self, web_server):
-        print {
-            'function': 'SEND',
-            'dest': self.destination,
-            'pk': self.pk,
-            'time': self.time,
-            'state': self.state,
-            'schedule': self.schedule,
-            'error': self.last_error,
-        }
-        if self.ERROR_SENDING:
-            self.state = self.WAITING
-        if self.state != self.WAITING:
-            #raise Exception('State: %s. Cannot send backup' % self.state)
-            return
-            
-        self.advance_state()
-        try:
-            self.remote_backup()
-            self.advance_state()
-        except:
-            import sys
-            self.update_error(sys.exc_info())
-            self.state = self.ERROR_SENDING
-        
-        self.save()    
-        return None
-
-    def local_backup(self):
-        dt = timezone.now()
-        dt_str = datetime.strftime(dt, DATETIME_FORMAT)
-        date = dt_str[:dt_str.rfind('.')]
-        
-        origin = Origin.objects.get(pk=1)
-        filename = origin.name + '_' + self.date
-        
-        apps = settings.TBACKUP_APPS
-        
-        f = open(os.path.join(TBACKUP_DUMP_DIR,filename), "wb")
-        call_command('dumpdata', *apps, stdout=f)
-        f.close()
-                
-        newfilename = filename + '.db.gz'
-        
-        f_in  = open(os.path.join(TBACKUP_DUMP_DIR,filename), 'rb')
-        f_out = gzip.open(os.path.join(TBACKUP_DUMP_DIR,newfilename), 'wb',9)
-        
-        f_out.writelines(f_in)
-        f_out.close()
-        f_in.close()
-        os.remove(os.path.join(TBACKUP_DUMP_DIR,filename))
-        
-        log.filename = newfilename
-        log.local_status = True
-
-    
-    def remote_backup(self, log):
-        #from base64 import b64encode
-        sha1 = SHA.new()
 
         
-        ws = WebServer.objects.get(pk=1)
-        #url = ws.url + 'tbackup_server/backup/'
-        #print url
-        #url = self._resolve_url('/a/creative/uploadcreative')
-        #url = 'http://127.0.0.1:8080/server/backup/'
-        f = open(os.path.join(TBACKUP_DUMP_DIR,log.filename), 'rb')
-        sha1.update(f.read())
-        f.seek(0)
-        files = {'file': (log.filename,f)}
-        #data = {'destination': log.destination.name,
-        #        'sha1sum' : sha1.hexdigest(),
-        #        'date' : str(log.date),
-        #        'origin_name' : Origin.objects.get(pk=1).name}
-        #req_msg = {'error' : 'false', 
-        #           'encrypted' : 'false', 
-        #           'key' : 'false',
-        #           'value' : json.dumps(data)}
-        response = requests.post(url, files=files, data=req_msg, verify=False)
-        
-        #print 'client:'
-        #print response.status_code
-        
-        if response.status_code != 200:
-            print 'response error'
-            print response.status_code
-            log.remote_status = False
-            return
-        
-        response_text = json.loads(response.text)
-        print response_text
-
-        log.remote_status = True
-        
-        return None
