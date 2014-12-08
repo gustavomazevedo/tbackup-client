@@ -59,22 +59,31 @@ class DataHandler(object):
         return [s for s in schedules if s.is_runtime(self.run_time)]
     
     def get_dumped_data(self):
-        #apps = [a.replace('django.contrib.','') if a.startswith('django.contrib.')
-        #        else a
-        #        for a in settings.TBACKUP_APPS]
+        '''
+            Gets complete dump of the database in JSON format, Gzipped
+        '''
         contents = StringIO()
         contents_gzipped = StringIO()
-        #call_command('dumpdata', *apps, stdout=contents)
-        #use natural keys to handle auto-generated contenttypes and auth.permission properly
-        call_command('dumpdata', use_natural_keys=True, exclude=['contenttypes', 'auth.permission'], stdout=contents)
+        
+        #use natural keys to handle auto-generated
+        #contenttypes and auth.permission properly
+        call_command('dumpdata',
+                     use_natural_keys=True,
+                     exclude=['contenttypes', 'auth.permission'],
+                     stdout=contents)
         contents.seek(0)
+        
         gzip_file = gzip.GzipFile(fileobj=contents_gzipped, mode='w')
         gzip_file.write(contents.read())
         gzip_file.close()
+        
         contents_gzipped.seek(0)
         return contents_gzipped
 
     def backup(self, schedule=None, destination=None):
+        '''
+            Backs up data
+        '''
         
         if not self.api:
             raise Exception('origin and webserver instances must be passed to DataHandler''s constructor to connect to API')
@@ -114,9 +123,13 @@ class DataHandler(object):
         return True
     
     def restore(self, remote_backup_id):
+        '''
+            Restores data into project, overriding current data
+        '''
         tmp_file = '/tmp/loaddata_fixture.json'
         auth = HTTPTokenAuth(self.origin.auth_token)
         
+        #mounts download url to use with requests lib to download as stream
         url = '%(host)s/backups/%(id)s/?fileformat=raw'% {
             'host': self.webserver.url,
             'id': remote_backup_id
@@ -125,7 +138,7 @@ class DataHandler(object):
         #get metadata for the restored backup
         self.restored_bkp_metadata = self.api.backups(remote_backup_id).get()
         
-        #use zlib with magic numbers to handle gzip chunks
+        #use zlib with magic number to handle gzip chunks
         z = zlib.decompressobj(16+zlib.MAX_WBITS)
         #use requests instead of slumber API to handle chunk (stream) downloads
         with open(tmp_file, 'wb') as f:
@@ -135,33 +148,38 @@ class DataHandler(object):
             for chunk in response.iter_content(1024):
                 if chunk:
                     f.write(z.decompress(chunk))
-        
                     
         out=StringIO()
         err=StringIO()
-        #DANGER IN HERE. FLUSH ALL DB AND THEN LOAD DOWNLOADED FIXTURE
+        #FLUSH ALL DB AND THEN LOAD DOWNLOADED FIXTURE
         call_command('flush', interactive=False)
         call_command('loaddata', tmp_file, stdout=out, stderr=err)
         
+        #if error
         err.seek(0, os.SEEK_END)
         if err.tell() > 0:
             err.seek(0)
             raise Exception(err.read())
         
+        #deletes tmp_file
         os.remove(tmp_file)
+        
         self.sync_backup_info()
         return out.read()
     
     def sync_backup_info(self):
         
+        #get info from restored metadata obtained in restore method
         if 'id' in self.restored_bkp_metadata:
             remote_backups = self.api.backups.get(min_date=self.restored_bkp_metadata['date'])
             remote_backups = sorted(remote_backups, key=lambda k: k['date'])
-            print remote_backups
+            
             for r_b in remote_backups:
+                #parses datetime in isoformat string to datetime object
                 dt = dateutil.parser.parse(r_b['date'])
+                #converts UTC datetime to local datetime
                 local_dt = timezone.make_naive(dt, pytz.timezone(settings.TIME_ZONE))
-                print local_dt
+                
                 schedule = Schedule.objects \
                                    .filter(active=True,
                                            initial_time__hour=local_dt.hour,
@@ -171,8 +189,9 @@ class DataHandler(object):
                     b = Backup(schedule=schedule)
                 else:
                     b = Backup()
-                b.remote_backup_date=r_b['date']
-                b.destination=r_b['destination']
+                    
+                b.remote_backup_date = r_b['date']
+                b.destination = r_b['destination']
                 b.remote_id = r_b['id']
                 b.name = r_b['name']
                 b.save()
@@ -191,7 +210,10 @@ class DataHandler(object):
         '''
         tmp_file = '/tmp/fix_contenttypes_mismatch.json'
         with open(tmp_file, 'wb') as f:
-            call_command('dumpdata', use_natural_keys=True, exclude=['contenttypes','auth.permission'], stdout=f)
+            call_command('dumpdata',
+                         use_natural_keys=True,
+                         exclude=['contenttypes','auth.permission'],
+                         stdout=f)
         call_command('flush', interactive=False)
         call_command('loaddata', tmp_file)
         os.remove(tmp_file)
