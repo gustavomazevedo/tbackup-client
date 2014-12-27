@@ -56,18 +56,18 @@ class Backup(models.Model):
     TIMEFORMAT = '%Y%m%d%H%M'
     
     #model fields
-    name = models.CharField(max_length=256)
-    file = models.FileField(upload_to=get_path_name, null=True, blank=True)
+    name = models.CharField(max_length=256, verbose_name=u'nome')
+    file = models.FileField(upload_to=get_path_name, null=True, blank=True, verbose_name=u'arquivo')
     
-    schedule    = models.ForeignKey('Schedule', null=True, blank=True)
-    origin      = models.CharField(max_length=256, null=True, blank=True)
-    destination = models.CharField(max_length=256, null=True, blank=True)
+    schedule    = models.ForeignKey('Schedule', null=True, blank=True, verbose_name=u'agendamento')
+    origin      = models.CharField(max_length=256, null=True, blank=True, verbose_name=u'cliente')
+    destination = models.CharField(max_length=256, null=True, blank=True, verbose_name=u'destino')
     
     #local_backup_date  = models.DateTimeField(null=True)
-    remote_backup_date = models.DateTimeField(null=True, blank=True)
+    remote_backup_date = models.DateTimeField(null=True, blank=True, verbose_name=u'data do backup remoto')
     
     last_error = models.TextField(null=True, blank=True)
-    remote_id  = models.BigIntegerField(null=True, blank=True)
+    remote_id  = models.BigIntegerField(null=True, blank=True, verbose_name=u'id remoto')
     
     #time     = models.DateTimeField()
     

@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 from django.utils.decorators import method_decorator
 from django.contrib.admin.views.decorators import staff_member_required
 from django.core.urlresolvers import reverse
@@ -13,6 +15,8 @@ from django_tables2 import RequestConfig
 from .handlers import DataHandler
 from .tables import BackupTable, DestinationTable, ScheduleTable
 from .forms import ConfirmRestoreForm
+
+from django.contrib import messages
 
 # Create your views here.
 
@@ -49,9 +53,13 @@ class ConfirmRestoreView(FormView):
         self.backup = get_object_or_404(Backup, pk=pk)
         form = ConfirmRestoreForm(request.POST)
         if form.is_valid():
-            return self.form_valid(form)
+            result = self.form_valid(form)
+            messages.add_message(request, messages.SUCCESS, u'Dados restaurados com sucesso')
         else:
-            return self.form_invalid(form)
+            result = self.form_invalid(form)
+            messages.add_message(request, messages.ERROR, u'Erro na restauração de dados. Favor Contactar os administratores.')
+        
+        return result
 
     def get_context_data(self, **kwargs):
         data = super(ConfirmRestoreView, self).get_context_data(**kwargs)
@@ -70,6 +78,7 @@ class ConfirmRestoreView(FormView):
         if ok:
             #id to restore
             handler.restore(self.backup.remote_id)
+            
         
         return super(ConfirmRestoreView, self).form_valid(form)
     
