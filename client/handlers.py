@@ -13,6 +13,7 @@ from django import forms
 from django.core.management import call_command
 from django.core.files.base import ContentFile
 from django.utils import timezone
+from django.utils.translation import ugettext_lazy as _
 from client.conf.settings import settings, TBACKUP_DATETIME_FORMAT
 
 from client.auth import HTTPTokenAuth
@@ -96,7 +97,7 @@ class DataHandler(object):
         else:
             backup_obj = Backup(name=self.filename)
             backup_obj.destination = destination
-            
+        
         backup_obj.full_clean()
         backup_obj.save()
         backup_obj.file.save(self.filename, ContentFile(self.contents))
