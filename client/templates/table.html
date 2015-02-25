@@ -10,6 +10,10 @@
   <link rel="stylesheet" href="{% static "django_tables2/themes/paleblue/css/screen.css" %}"/>
 {% endblock %}
 
+{% block branding %}
+<h1 id="site-name">{% trans pagename %}</h1>
+{% endblock %}
+
 {% block content %}
   <div id="content-main">
     <form id="changelist-form" action="" method="post"{% if cl.formset.is_multipart %} enctype="multipart/form-data"{% endif %}>{% csrf_token %}

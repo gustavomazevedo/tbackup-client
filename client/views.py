@@ -2,41 +2,40 @@
 
 from django.utils.decorators import method_decorator
 from django.contrib.admin.views.decorators import staff_member_required
-from django.core.urlresolvers import reverse
 from django.views.generic import FormView
 from django.shortcuts import render, get_object_or_404
-from django.template.context import RequestContext
-from .models import Backup, OpLog
-from .models.location import Destination, Origin, WebServer
-from .models.schedule import RRule, Schedule
+from .models import Backup
+from .models.location import Origin, WebServer
 
 from django_tables2 import RequestConfig
 
 from .handlers import DataHandler
-from .tables import BackupTable, DestinationTable, ScheduleTable
+from .tables import BackupTable, ScheduleTable
 from .forms import ConfirmRestoreForm
 
 from django.contrib import messages
+from django.shortcuts import redirect
 
 # Create your views here.
 
 def render_table(request, table_class):
     table_class._meta.attrs = {'class': 'paleblue'}
-    table = table_class(table_class._meta.model.objects.all())
+    model = table_class._meta.model
+    table = table_class(model.objects.all())
+    pagename = model._meta.verbose_name_plural.capitalize()
     RequestConfig(request).configure(table)
-    return render(request, 'table.html', {'table': table})
+    return render(request, 'table.html', {'table': table, 'pagename': pagename})
 
 @staff_member_required
 def backups(request):
     return render_table(request, BackupTable)
 
-def destinations(request):
-    return render_table(request, DestinationTable)
+def schedules(request):
+    return render_table(request, ScheduleTable)
 
-def origins(request):
-    return render_table(request, OriginTable)
-
-#@staff_member_required
+def schedule_change(request, id):
+    return redirect('admin:client_schedule_change', id)
+    
 class ConfirmRestoreView(FormView):
     template_name = 'restore_confirmation.html'
     form_class = ConfirmRestoreForm

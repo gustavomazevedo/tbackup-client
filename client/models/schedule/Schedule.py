@@ -33,6 +33,10 @@ class Schedule(models.Model):
                             )
         }
     
+    @property
+    def edit(self):
+        return 'Editar'
+    
     def save(self, *args, **kwargs):
         self.initial_time = normalize_time(self.initial_time)
         return super(Schedule, self).save(*args, **kwargs)
