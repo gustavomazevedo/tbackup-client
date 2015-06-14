@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 
 from django.test import TestCase
-#from django.test import Client
 from django.utils import timezone
 
 from .models import (
@@ -13,12 +12,6 @@ from .models import (
 )
 
 from datetime import timedelta
-#rom django.utils.timezone import utc
-#from django.conf import settings
-
-#from django.core.files import File
-
-#import os
 
 PATH='/Users/gustavo/'
 #PATH='/home/gustavo.azevedo/Projects/'
@@ -61,8 +54,6 @@ class RuleCase(TestCase):
                   s.initial_time.minute == self.schedule.initial_time.minute)
             print s.initial_time == self.schedule.initial_time      
 
-        #schedules = Schedule.objects.filter(initial_time__hour=self.schedule.initial_time.hour,
-        #                                   initial_time__minute=self.schedule.initial_time.minute)
         schedules = Schedule.objects.filter(initial_time=self.schedule.initial_time)
         self.assertIn(self.schedule, schedules)
     

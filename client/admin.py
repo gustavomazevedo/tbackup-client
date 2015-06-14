@@ -1,25 +1,8 @@
 # -*- coding: utf-8 -*-
 
-from django.core.exceptions import  PermissionDenied
-
 from django.contrib import admin, messages
-from django.http import HttpResponseForbidden
-# Register your models here.
 
-from .conf.settings import GET
-
-from .models import (
-    Destination,
-    Origin,
-    WebServer,
-    Backup,
-  # Plan
-   Schedule,
-   RRule
-   #Log,
-  # BackupStatus,
-  )
-#from .forms import ConfigForm, OriginForm
+from .models import Origin, WebServer, Schedule
 from .forms import OriginAddForm, OriginEditForm, ScheduleForm, NEW_USER, EXISTING_USER
 
 class OriginAdmin(admin.ModelAdmin):
@@ -68,16 +51,6 @@ class OriginAdmin(admin.ModelAdmin):
 
 class ScheduleAdmin(admin.ModelAdmin):
     form = ScheduleForm
-    
-    #def add_view(self, request, form_url='', extra_context=None):
-    #    if request.method == GET:
-    #        Destination.update(WebServer.instance(), Origin.objects.get(pk=1).remote_id)
-    #    return super(ScheduleAdmin, self).add_view(request, form_url, extra_context)
-    
-    #def change_view(self, request,form_url=''):
-    #    if request.method == GET:
-    #        Destination.update(WebServer.instance(), Origin.objects.get(pk=1).remote_id)
-    #    return super(ScheduleAdmin, self).change_view(request,form_url)
 
 class WebServerAdmin(admin.ModelAdmin):
     #readonly_fields = ('apikey',)

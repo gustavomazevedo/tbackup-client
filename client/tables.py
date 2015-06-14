@@ -54,9 +54,6 @@ class ScheduleTable(tables.Table):
     def render_row_number(self):
         return '%d' % next(self.counter)
     
-    #def render_edit(self):
-    #    return 'Editar'
-    
     class Meta:
         model = Schedule
         fields = ('row_number',

@@ -1,13 +1,9 @@
 # -*- coding: utf-8 -*-
 
-from django.forms import widgets
 from django import forms
-from django.utils.translation import ugettext_lazy as _
+from slumber.exceptions import HttpClientError, HttpServerError
 
 from client.models import (Origin, WebServer, Schedule)
-
-from .auth import HTTPTokenAuth
-from slumber.exceptions import HttpClientError, HttpServerError
 
 NEW_USER = u'0'
 EXISTING_USER = u'1'
