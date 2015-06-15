@@ -5,7 +5,6 @@ from django.utils import timezone
 
 from .models import (
 #    Origin,
-#    Destination,
     Schedule,
 #    WebServer,
     RRule,
